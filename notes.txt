@@ -1,4 +1,4 @@
-add reset
+ansiwrap exit when child quit
 
 todo:
 split server msg

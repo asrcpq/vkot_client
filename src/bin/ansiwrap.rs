@@ -45,6 +45,7 @@ impl vte::Perform for VteActor {
 enum Msg {
 	Vtc(ServerMsg),
 	CmdRead(usize, [u8; 1024]),
+	Exit,
 }
 
 fn vtc_thread(mut rh: ReadHalf, tx: Sender<Msg>) {
@@ -58,7 +59,10 @@ fn cmd_thread(mut stdout: ChildStdout, tx: Sender<Msg>) {
 	loop {
 		let mut buf = [0u8; 1024];
 		let len = stdout.read(&mut buf).unwrap();
-		if len == 0 { break }
+		if len == 0 {
+			tx.send(Msg::Exit).unwrap();
+			break
+		}
 		// eprintln!("get buf {:?}", String::from_utf8_lossy(&buf[0..len]));
 		tx.send(Msg::CmdRead(len, buf)).unwrap();
 	}
@@ -67,7 +71,7 @@ fn cmd_thread(mut stdout: ChildStdout, tx: Sender<Msg>) {
 fn main() {
 	let mut parser = vte::Parser::new();
 	let (rh, mut wh) = Client::default().unwrap();
-	wh.reset();
+	wh.reset().unwrap();
 	let mut va = VteActor::new(wh);
 	let args = std::env::args().collect::<Vec<String>>();
 	let child = Command::new(&args[1])
@@ -88,6 +92,7 @@ fn main() {
 					parser.advance(&mut va, *byte);
 				}
 			}
+			Msg::Exit => break,
 			_ => {},
 		}
 	}
