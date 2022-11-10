@@ -1,1 +1,4 @@
-server msg
+split client to rh wh
+
+todo:
+split msg

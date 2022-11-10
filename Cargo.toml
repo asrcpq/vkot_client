@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 byteorder = "1"
 anyhow = "1"
+vte = "0.11"
