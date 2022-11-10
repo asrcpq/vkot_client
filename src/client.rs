@@ -24,6 +24,16 @@ impl WriteHalf {
 		Ok(())
 	}
 
+	pub fn reset(&mut self) -> Result<()> {
+		self.writer.write(&hi(3))?;
+		self.writer.write(&[129, 0])?;
+		self.writer.write(&0u32.to_le_bytes())?;
+		self.writer.write(&[129, 1])?;
+		self.writer.write(&0u32.to_le_bytes())?;
+		self.writer.flush()?;
+		Ok(())
+	}
+
 	pub fn print(&mut self, ch: char) -> Result<()> {
 		let ch = ch as u32;
 		if ch < 128 {

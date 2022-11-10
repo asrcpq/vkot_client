@@ -66,7 +66,8 @@ fn cmd_thread(mut stdout: ChildStdout, tx: Sender<Msg>) {
 
 fn main() {
 	let mut parser = vte::Parser::new();
-	let (rh, wh) = Client::default().unwrap();
+	let (rh, mut wh) = Client::default().unwrap();
+	wh.reset();
 	let mut va = VteActor::new(wh);
 	let args = std::env::args().collect::<Vec<String>>();
 	let child = Command::new(&args[1])
