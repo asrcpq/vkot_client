@@ -1,4 +1,4 @@
-ansiwrap exit when child quit
+add more csi
 
 todo:
 split server msg

@@ -1,19 +1,59 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio, ChildStdout};
 use std::sync::mpsc::{channel, Sender};
 
 use vkot_client::client::{Client, ReadHalf, WriteHalf};
 use vkot_client::msg::ServerMsg;
+use vkot_client::color_table::ColorTable;
 
 struct VteActor {
 	wh: WriteHalf,
+	color_table: ColorTable,
 }
 
 impl VteActor {
 	pub fn new(wh: WriteHalf) -> Self {
 		Self {
-			wh
+			wh,
+			color_table: Default::default(),
 		}
+	}
+
+	pub fn csi_easy(&mut self, simple: Vec<u16>, action: char) -> std::io::Result<()> {
+		match action {
+			'm' => {
+				let mut boffset = 0;
+				for arg in simple.into_iter() {
+					if arg == 1 {
+						boffset = 8;
+					} else if arg == 0 {
+						boffset = 0;
+						self.wh.set_color([1.0; 4])?;
+					} else if (30..=37).contains(&arg) {
+						self.wh.set_color(self
+							.color_table
+							.rgb_from_256color(arg as u8 - 30 + boffset)
+						)?;
+					}
+				}
+			}
+			'A' => {
+				self.wh.loc(3, -(simple[0] as i32))?;
+			}
+			'B' => {
+				self.wh.loc(3, simple[0] as i32)?;
+			}
+			'C' => {
+				self.wh.loc(2, simple[0] as i32)?;
+			}
+			'D' => {
+				self.wh.loc(2, -(simple[0] as i32))?;
+			}
+			_ => {
+				eprintln!("unknown csi {}", action)
+			}
+		}
+		Ok(())
 	}
 }
 
@@ -33,12 +73,13 @@ impl vte::Perform for VteActor {
 
 	fn csi_dispatch(
 		&mut self,
-		_params: &vte::Params,
+		params: &vte::Params,
 		_intermediates: &[u8],
 		_ignore: bool,
 		action: char,
 	) {
-		eprintln!("csi {}", action)
+		let simple = params.iter().map(|x| x[0]).collect::<Vec<u16>>();
+		self.csi_easy(simple, action).unwrap();
 	}
 }
 
@@ -84,6 +125,7 @@ fn main() {
 	let tx2 = tx.clone();
 	std::thread::spawn(move || vtc_thread(rh, tx));
 	std::thread::spawn(move || cmd_thread(child.stdout.unwrap(), tx2));
+	let mut child_stdin = child.stdin.unwrap();
 	loop {
 		match rx.recv().unwrap() {
 			Msg::CmdRead(len, buf) => {
@@ -92,8 +134,18 @@ fn main() {
 					parser.advance(&mut va, *byte);
 				}
 			}
+			Msg::Vtc(vtc) => {
+				match vtc {
+					ServerMsg::Getch(ch) => {
+						if ch < 127 {
+							eprintln!("{}", ch);
+							child_stdin.write(&[ch as u8]).unwrap();
+						}
+					}
+					_ => {},
+				}
+			},
 			Msg::Exit => break,
-			_ => {},
 		}
 	}
 }
