@@ -1,4 +1,4 @@
-minor fix
+text mode by default
 
 todo:
-split msg
+split server msg

@@ -20,7 +20,6 @@ impl VteActor {
 impl vte::Perform for VteActor {
 	fn print(&mut self, c: char) {
 		self.wh.print(c).unwrap();
-		self.wh.loc(2, 1).unwrap();
 		self.wh.flush().unwrap();
 	}
 
