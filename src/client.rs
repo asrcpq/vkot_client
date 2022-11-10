@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::{BufWriter, Read, Write, Result};
 use std::os::unix::net::UnixStream;
 
@@ -7,6 +8,7 @@ pub struct Client {
 	writer: BufWriter<UnixStream>,
 	stream: UnixStream,
 	buf: [u8; 1024],
+	event_queue: VecDeque<ServerMsg>,
 }
 
 impl Default for Client {
@@ -21,21 +23,27 @@ impl Default for Client {
 			writer,
 			stream,
 			buf: [0u8; 1024],
+			event_queue: VecDeque::new(),
 		}
 	}
 }
 
 impl Client {
 	pub fn poll_event(&mut self) -> Option<ServerMsg> {
+		if !self.event_queue.is_empty() {
+			return self.event_queue.pop_front();
+		}
 		let len = match self.stream.read(&mut self.buf) {
 			Ok(l) => l,
 			Err(_) => return None,
 		};
 		if len == 0 { return None }
-		// temporary parser
-		let string = String::from_utf8_lossy(&self.buf[..len]);
-		let ch = string.chars().next().unwrap();
-		Some(ServerMsg::Getch(ch))
+		let result = match ServerMsg::from_buf(&self.buf[..len], &mut 0) {
+			Ok(x) => x,
+			Err(_) => return None,
+		};
+		self.event_queue.extend(result);
+		return self.event_queue.pop_front();
 	}
 
 	pub fn clear(&mut self) -> Result<()> {

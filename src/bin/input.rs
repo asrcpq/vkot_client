@@ -9,10 +9,10 @@ fn main() -> Result<()> {
 	loop {
 		let event = client.poll_event().unwrap();
 		if let ServerMsg::Getch(ch) = event {
-			if ch == '\r' {
+			if ch == '\r' as u32 {
 				lines.push(Vec::new());
 			} else {
-				lines.last_mut().unwrap().push(ch);
+				lines.last_mut().unwrap().push(char::from_u32(ch).unwrap());
 			}
 		}
 		client.clear()?;

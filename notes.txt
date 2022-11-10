@@ -1,1 +1,1 @@
-move color table to client side
+server msg
