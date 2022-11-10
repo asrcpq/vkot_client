@@ -1,4 +1,4 @@
-add more csi
+remove byteorder dep
 
 todo:
 split server msg

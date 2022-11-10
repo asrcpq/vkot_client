@@ -1,5 +1,9 @@
 use anyhow::{anyhow, Result};
-use byteorder::{ByteOrder, LittleEndian as Ble};
+use std::convert::TryInto;
+
+fn read_u32(bytes: &[u8]) -> u32 {
+	u32::from_le_bytes(bytes.try_into().unwrap())
+}
 
 pub enum ServerMsg {
 	Getch(u32),
@@ -14,13 +18,13 @@ impl ServerMsg {
 			*offset += 1;
 			let msg = match b0 {
 				b'g' => {
-					let ch = Ble::read_u32(&buf[*offset..*offset + 4]);
+					let ch = read_u32(&buf[*offset..*offset + 4]);
 					*offset += 4;
 					Self::Getch(ch)
 				}
 				b'r' => {
-					let u1 = Ble::read_u32(&buf[*offset..*offset + 4]);
-					let u2 = Ble::read_u32(&buf[*offset + 4..*offset + 8]);
+					let u1 = read_u32(&buf[*offset..*offset + 4]);
+					let u2 = read_u32(&buf[*offset + 4..*offset + 8]);
 					*offset += 8;
 					Self::Resized([u1, u2])
 				}
