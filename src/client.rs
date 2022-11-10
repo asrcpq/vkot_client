@@ -26,7 +26,7 @@ impl WriteHalf {
 
 	pub fn print(&mut self, ch: char) -> Result<()> {
 		let ch = ch as u32;
-		if ch <= 128 {
+		if ch < 128 {
 			self.writer.write(&[ch as u8])?;
 			return Ok(())
 		}

@@ -70,7 +70,7 @@ fn main() {
 	let (rh, wh) = Client::default().unwrap();
 	let mut va = VteActor::new(wh);
 	let args = std::env::args().collect::<Vec<String>>();
-	let mut child = Command::new(&args[1])
+	let child = Command::new(&args[1])
 		.args(&args[2..])
 		.stdout(Stdio::piped())
 		.stdin(Stdio::piped())

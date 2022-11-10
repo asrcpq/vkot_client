@@ -1,4 +1,4 @@
-simple write
+minor fix
 
 todo:
 split msg
