@@ -99,3 +99,9 @@ impl Default for Client {
 		}
 	}
 }
+
+impl Client {
+	pub fn unwrap(self) -> (ReadHalf, WriteHalf) {
+		(self.rh, self.wh)
+	}
+}

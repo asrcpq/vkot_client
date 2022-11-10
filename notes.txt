@@ -1,4 +1,4 @@
-split client to rh wh
+ansiwrap framework
 
 todo:
 split msg
