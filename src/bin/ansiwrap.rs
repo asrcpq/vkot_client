@@ -2,14 +2,41 @@ use std::io::Read;
 use std::process::{Command, Stdio, ChildStdout};
 use std::sync::mpsc::{channel, Sender};
 
-use vkot_client::client::{Client, ReadHalf};
+use vkot_client::client::{Client, ReadHalf, WriteHalf};
 use vkot_client::msg::ServerMsg;
 
-#[derive(Default)]
-struct VteActor;
+struct VteActor {
+	wh: WriteHalf,
+}
+
+impl VteActor {
+	pub fn new(wh: WriteHalf) -> Self {
+		Self {
+			wh
+		}
+	}
+}
+
 impl vte::Perform for VteActor {
 	fn print(&mut self, c: char) {
-		eprintln!("print {}", c);
+		if c == '\n' {
+			self.wh.loc(3, 1).unwrap();
+			self.wh.loc(0, 0).unwrap();
+			return
+		}
+		self.wh.print(c).unwrap();
+		self.wh.loc(2, 1).unwrap();
+		self.wh.flush().unwrap();
+	}
+
+	fn csi_dispatch(
+		&mut self,
+		params: &vte::Params,
+		intermediates: &[u8],
+		ignore: bool,
+		action: char,
+	) {
+		eprintln!("csi {}", action)
 	}
 }
 
@@ -30,17 +57,18 @@ fn cmd_thread(mut stdout: ChildStdout, tx: Sender<Msg>) {
 		let mut buf = [0u8; 1024];
 		let len = stdout.read(&mut buf).unwrap();
 		if len == 0 { break }
-		eprintln!("get buf {:?}", String::from_utf8_lossy(&buf[0..len]));
+		// eprintln!("get buf {:?}", String::from_utf8_lossy(&buf[0..len]));
 		tx.send(Msg::CmdRead(len, buf)).unwrap();
 	}
 }
 
 fn main() {
-	let mut va = VteActor::default();
 	let mut parser = vte::Parser::new();
 	let (rh, wh) = Client::default().unwrap();
+	let mut va = VteActor::new(wh);
 	let args = std::env::args().collect::<Vec<String>>();
 	let mut child = Command::new(&args[1])
+		.args(&args[2..])
 		.stdout(Stdio::piped())
 		.stdin(Stdio::piped())
 		.spawn()

@@ -1,4 +1,4 @@
-ansiwrap framework
+simple write
 
 todo:
 split msg

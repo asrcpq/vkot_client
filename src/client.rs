@@ -4,6 +4,10 @@ use std::os::unix::net::UnixStream;
 
 use crate::msg::ServerMsg;
 
+fn hi(ch: u8) -> [u8; 1] {
+	[ch + 128]
+}
+
 pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
 }
@@ -16,29 +20,33 @@ impl WriteHalf {
 	}
 
 	pub fn clear(&mut self) -> Result<()> {
-		self.writer.write(&[b'C'])?;
+		self.writer.write(&hi(3))?;
 		Ok(())
 	}
 
-	pub fn print(&mut self, msg: &str) -> Result<()> {
-		self.writer.write(&[b'p'])?;
-		self.writer.write(&(msg.len() as u32).to_le_bytes())?;
-		self.writer.write(msg.as_bytes())?;
+	pub fn print(&mut self, ch: char) -> Result<()> {
+		let ch = ch as u32;
+		if ch <= 128 {
+			self.writer.write(&[ch as u8])?;
+			return Ok(())
+		}
+		self.writer.write(&hi(0))?;
+		self.writer.write(&ch.to_le_bytes())?;
 		Ok(())
 	}
 
 	pub fn set_color(&mut self, color: [f32; 4]) -> Result<()> {
-		self.writer.write(&[b'c']).unwrap();
+		self.writer.write(&hi(2)).unwrap();
 		for c in color.iter() {
 			self.writer.write(&c.to_le_bytes())?;
 		}
 		Ok(())
 	}
 
-	pub fn move_cursor(&mut self, pos: [u32; 2]) -> Result<()> {
-		self.writer.write(&[b'm'])?;
-		self.writer.write(&pos[0].to_le_bytes())?;
-		self.writer.write(&pos[1].to_le_bytes())?;
+	pub fn loc(&mut self, ty: u8, pos: i32) -> Result<()> {
+		self.writer.write(&hi(1))?;
+		self.writer.write(&[ty])?;
+		self.writer.write(&pos.to_le_bytes())?;
 		Ok(())
 	}
 
