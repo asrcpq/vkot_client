@@ -76,12 +76,21 @@ impl ReadHalf {
 		}
 		let len = match self.stream.read(&mut self.buf) {
 			Ok(l) => l,
-			Err(_) => return None,
+			Err(_) => {
+				eprintln!("Read error");
+				return None
+			}
 		};
-		if len == 0 { return None }
+		if len == 0 {
+			eprintln!("EOF");
+			return None
+		}
 		let result = match ServerMsg::from_buf(&self.buf[..len], &mut 0) {
 			Ok(x) => x,
-			Err(_) => return None,
+			Err(e) => {
+				eprintln!("{:?}", e);
+				return None
+			}
 		};
 		self.event_queue.extend(result);
 		return self.event_queue.pop_front();

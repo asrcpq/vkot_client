@@ -19,21 +19,24 @@ impl VteActor {
 
 impl vte::Perform for VteActor {
 	fn print(&mut self, c: char) {
-		if c == '\n' {
-			self.wh.loc(3, 1).unwrap();
-			self.wh.loc(0, 0).unwrap();
-			return
-		}
 		self.wh.print(c).unwrap();
 		self.wh.loc(2, 1).unwrap();
 		self.wh.flush().unwrap();
 	}
 
+	fn execute(&mut self, b: u8) {
+		if b == b'\n' {
+			self.wh.loc(3, 1).unwrap();
+			self.wh.loc(0, 0).unwrap();
+			return
+		}
+	}
+
 	fn csi_dispatch(
 		&mut self,
-		params: &vte::Params,
-		intermediates: &[u8],
-		ignore: bool,
+		_params: &vte::Params,
+		_intermediates: &[u8],
+		_ignore: bool,
 		action: char,
 	) {
 		eprintln!("csi {}", action)
