@@ -52,7 +52,7 @@ impl WriteHalf {
 	pub fn reset(&mut self) {
 		self.clear();
 		self.cursor = [0; 2];
-		self.flush().unwrap();
+		self.refresh().unwrap();
 	}
 
 	pub fn cursor_limit(&mut self) {
@@ -142,8 +142,7 @@ impl WriteHalf {
 		self.cursor_limit();
 	}
 
-	pub fn flush(&mut self) -> Result<()> {
-		// FIXME: damage
+	pub fn refresh(&mut self) -> Result<()> {
 		self.writer.write(&[0])?;
 		self.writer.write(&0i16.to_le_bytes())?;
 		self.writer.write(&0i16.to_le_bytes())?;
@@ -157,6 +156,11 @@ impl WriteHalf {
 		}
 		self.writer.flush()?;
 		Ok(())
+	}
+
+	pub fn send_damage(&mut self) -> Result<()> {
+		// FIXME
+		self.refresh()
 	}
 }
 

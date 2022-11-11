@@ -62,11 +62,11 @@ impl VteActor {
 			}
 			'K' => {
 				self.wh.erase_display(simple.get(0).cloned().unwrap_or(0));
-				self.wh.flush().unwrap();
+				self.wh.send_damage().unwrap();
 			}
 			'J' => {
 				self.wh.erase_line(simple.get(0).cloned().unwrap_or(0));
-				self.wh.flush().unwrap();
+				self.wh.send_damage().unwrap();
 			}
 			'H' | 'f' => {
 				let px = simple.get(0).cloned().unwrap_or(0) as i16;
