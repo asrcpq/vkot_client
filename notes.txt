@@ -1,4 +1,4 @@
-implement erase
+move ansiwrap to module
 
 todo:
 split server msg

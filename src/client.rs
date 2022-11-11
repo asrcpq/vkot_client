@@ -34,6 +34,15 @@ impl WriteHalf {
 		}
 	}
 
+	pub fn resize(&mut self, new_size: [i16; 2]) {
+		eprintln!("resizing to {:?}", new_size);
+		self.buffer.resize(new_size[1] as usize, vec![ECELL; new_size[0] as usize]);
+		for line in self.buffer.iter_mut() {
+			line.resize(new_size[0] as usize, ECELL);
+		}
+		self.size = new_size;
+	}
+
 	pub fn clear(&mut self) {
 		let sx = self.size[0] as usize;
 		let sy = self.size[1] as usize;
