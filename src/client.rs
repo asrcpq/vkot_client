@@ -102,12 +102,6 @@ impl WriteHalf {
 		}
 	}
 
-	pub fn backspace(&mut self) {
-		self.cursor[0] -= 1;
-		self.fixcur();
-		self.put(' ', false).unwrap();
-	}
-
 	pub fn shift_by_width(&mut self, ch: char) {
 		if wide_test(ch) {
 			self.loc(2, 2);
@@ -173,6 +167,8 @@ impl WriteHalf {
 			_ => panic!(),
 		}
 		self.fixcur();
+		self.send_cursor();
+		self.writer.flush().unwrap();
 	}
 
 	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {

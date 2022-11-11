@@ -14,7 +14,12 @@ impl VteActor {
 		}
 	}
 
-	pub fn csi_easy(&mut self, simple: Vec<u16>, action: char) -> std::io::Result<()> {
+	pub fn csi_easy(
+		&mut self,
+		simple: Vec<u16>,
+		interm: &[u8],
+		action: char,
+	) -> std::io::Result<()> {
 		match action {
 			'm' => {
 				let mut boffset = 0;
@@ -45,6 +50,8 @@ impl VteActor {
 						} else {
 							unimplemented!();
 						}
+					} else {
+						self.wh.set_color(u32::MAX);
 					}
 				}
 			}
@@ -74,8 +81,26 @@ impl VteActor {
 				self.wh.loc(0, py);
 				self.wh.loc(1, px);
 			}
+			'h' | 'l' => {
+				if simple.is_empty() {
+					return Ok(())
+				}
+				if simple[0] == 2004 {
+					// backet copy/paste
+					return Ok(())
+				}
+				if simple[0] == 1 {
+					// application mode
+					return Ok(())
+				}
+			}
 			_ => {
-				eprintln!("unknown csi {}: {:?}", action, simple)
+				eprintln!(
+					"unknown csi {}: {:?} {}",
+					action,
+					simple,
+					String::from_utf8_lossy(interm),
+				)
 			}
 		}
 		Ok(())
@@ -95,7 +120,7 @@ impl vte::Perform for VteActor {
 				return
 			}
 			b'\x08' => {
-				self.wh.backspace();
+				self.wh.loc(2, -1);
 			}
 			b'\x0d' => {
 				self.wh.loc(0, 0);
@@ -107,6 +132,7 @@ impl vte::Perform for VteActor {
 			b'\x07' => {
 				eprintln!("beep!")
 			}
+			0 => {}, // ignore
 			b => eprintln!("control char received: {}", b),
 		}
 	}
@@ -114,11 +140,11 @@ impl vte::Perform for VteActor {
 	fn csi_dispatch(
 		&mut self,
 		params: &vte::Params,
-		_intermediates: &[u8],
+		interm: &[u8],
 		_ignore: bool,
 		action: char,
 	) {
 		let simple = params.iter().map(|x| x[0]).collect::<Vec<u16>>();
-		self.csi_easy(simple, action).unwrap();
+		self.csi_easy(simple, interm, action).unwrap();
 	}
 }

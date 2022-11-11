@@ -1,4 +1,4 @@
-beep
+^H should not erase
 
 todo:
 split server msg
