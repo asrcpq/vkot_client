@@ -8,13 +8,13 @@ use std::os::unix::io::IntoRawFd;
 use std::path::Path;
 
 fn start() {
-	let console = VteMaster::default();
 	let master_fd = posix_openpt(OFlag::O_RDWR).unwrap();
 	grantpt(&master_fd).unwrap();
 	unlockpt(&master_fd).unwrap();
 	let slave_name = unsafe { ptsname(&master_fd).unwrap() };
 	let slave_fd = open(Path::new(&slave_name), OFlag::O_RDWR, Mode::empty()).unwrap();
 	let master_fd = master_fd.into_raw_fd();
+	let mut console = VteMaster::new(master_fd);
 
 	match unsafe {unistd::fork()} {
 		Ok(unistd::ForkResult::Parent { child: _, .. }) => {
@@ -27,8 +27,7 @@ fn start() {
 			// create process group
 			unistd::setsid().unwrap();
 
-			const TIOCSCTTY: usize = 0x540E;
-			nix::ioctl_write_int_bad!(tiocsctty, TIOCSCTTY);
+			nix::ioctl_write_int_bad!(tiocsctty, libc::TIOCSCTTY);
 			unsafe { tiocsctty(slave_fd, 0).unwrap() };
 
 			unistd::dup2(slave_fd, 0).unwrap(); // stdin
@@ -45,7 +44,6 @@ fn start() {
 				.cloned()
 				.map(|x| CString::new(x).unwrap())
 				.collect::<Vec<_>>();
-			eprintln!("{:?}", args);
 			unistd::execvp(&path, &args).unwrap();
 		}
 		Err(_) => panic!(),

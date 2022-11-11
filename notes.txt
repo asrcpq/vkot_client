@@ -1,4 +1,4 @@
-limit cursor pos
+update terminal size
 
 todo:
 split server msg
