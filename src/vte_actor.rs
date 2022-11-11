@@ -71,8 +71,8 @@ impl VteActor {
 			'H' | 'f' => {
 				let px = simple.get(0).cloned().unwrap_or(0) as i16;
 				let py = simple.get(1).cloned().unwrap_or(0) as i16;
-				self.wh.loc(0, px);
-				self.wh.loc(1, py);
+				self.wh.loc(0, py);
+				self.wh.loc(1, px);
 			}
 			_ => {
 				eprintln!("unknown csi {}: {:?}", action, simple)

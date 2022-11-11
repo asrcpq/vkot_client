@@ -40,8 +40,8 @@ fn cmd_thread(fd: RawFd, tx: Sender<Msg>) {
 
 fn size_conv(size: [i16; 2]) -> Winsize {
 	Winsize {
-		ws_row: size[0] as u16,
-		ws_col: size[1] as u16,
+		ws_row: size[1] as u16,
+		ws_col: size[0] as u16,
 		ws_xpixel: 0,
 		ws_ypixel: 0,
 	}
