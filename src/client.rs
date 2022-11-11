@@ -81,6 +81,9 @@ impl WriteHalf {
 		let cy = self.cursor[1] as usize;
 		let chu = ch as u32;
 		self.buffer[cy][cx] = (chu, self.current_color);
+	}
+
+	pub fn shift_by_width(&mut self, ch: char) {
 		if wide_test(ch) {
 			self.loc(2, 2);
 		} else {
@@ -95,6 +98,8 @@ impl WriteHalf {
 		self.writer.write(&self.cursor[1].to_le_bytes())?;
 		self.writer.write(&(ch as u32).to_le_bytes())?;
 		self.writer.write(&self.current_color.to_le_bytes())?;
+		self.shift_by_width(ch);
+		// TODO: send cursor
 		self.writer.flush()?;
 		Ok(())
 	}
