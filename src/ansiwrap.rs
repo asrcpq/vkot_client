@@ -95,7 +95,7 @@ impl VteMaster {
 		loop {
 			match rx.recv().unwrap() {
 				Msg::CmdRead(byte) => {
-					if byte > 0 {eprint!("{:?}", byte as char);}
+					// if byte > 0 {eprint!("{:?}", byte as char);}
 					parser.advance(&mut self.va, byte);
 				}
 				Msg::Vtc(vtc) => {

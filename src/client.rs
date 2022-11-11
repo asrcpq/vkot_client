@@ -176,7 +176,6 @@ impl WriteHalf {
 			_ => panic!(),
 		}
 		self.fixcur();
-		eprintln!("loc:{}{}{:?}{}", ty, pos, self.cursor, self.eol as u8);
 		self.send_cursor().unwrap();
 		self.writer.flush().unwrap();
 	}
