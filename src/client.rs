@@ -4,70 +4,104 @@ use std::os::unix::net::UnixStream;
 
 use crate::msg::ServerMsg;
 
-fn hi(ch: u8) -> [u8; 1] {
-	[ch + 128]
+pub fn wide_test(ch: char) -> bool {
+	match unicode_width::UnicodeWidthChar::width(ch) {
+		Some(x) => x >= 2,
+		None => true,
+	}
 }
 
 pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
+	buffer: Vec<Vec<(u32, u32)>>,
+	size: [i16; 2],
+	damage: [i16; 4],
+	cursor: [i16; 2],
+	current_color: u32,
 }
 
 impl WriteHalf {
 	pub fn new(stream: UnixStream) -> Self {
 		Self {
 			writer: BufWriter::new(stream),
+			buffer: vec![vec![
+				(b' ' as u32, u32::MAX); 80
+			]; 24],
+			size: [80, 24],
+			damage: [0; 4],
+			cursor: [0; 2],
+			current_color: u32::MAX,
 		}
 	}
 
-	pub fn clear(&mut self) -> Result<()> {
-		self.writer.write(&hi(3))?;
-		Ok(())
+	pub fn clear(&mut self) {
+		let sx = self.size[0] as usize;
+		let sy = self.size[1] as usize;
+		self.buffer = vec![vec![
+			(b' ' as u32, u32::MAX); sx
+		]; sy];
 	}
 
-	pub fn reset(&mut self) -> Result<()> {
-		self.writer.write(&hi(3))?;
-		self.writer.write(&[129, 0])?;
-		self.writer.write(&0u32.to_le_bytes())?;
-		self.writer.write(&[129, 1])?;
-		self.writer.write(&0u32.to_le_bytes())?;
-		self.writer.flush()?;
-		Ok(())
+	pub fn reset(&mut self) {
+		self.clear();
+		self.cursor = [0; 2];
+		self.flush().unwrap();
 	}
 
-	pub fn print(&mut self, ch: char) -> Result<()> {
+	pub fn print(&mut self, ch: char) {
+		if ch == '\n' {
+			self.cursor[0] = 0;
+			self.cursor[1] += 1;
+			return
+		}
+		let cx = self.cursor[0] as usize;
+		let cy = self.cursor[1] as usize;
+		if wide_test(ch) {
+			self.loc(2, 2);
+		} else {
+			self.loc(2, 1);
+		}
 		let ch = ch as u32;
-		if ch < 128 {
-			self.writer.write(&[ch as u8])?;
-			return Ok(())
-		}
-		self.writer.write(&hi(0))?;
-		self.writer.write(&ch.to_le_bytes())?;
-		Ok(())
+		self.buffer[cy][cx] = (ch, self.current_color);
 	}
 
-	pub fn set_color(&mut self, color: [f32; 4]) -> Result<()> {
-		self.writer.write(&hi(2)).unwrap();
-		for c in color.iter() {
-			self.writer.write(&c.to_le_bytes())?;
-		}
-		Ok(())
+	// pub fn resize()
+
+	pub fn set_color(&mut self, color: u32) {
+		self.current_color = color;
 	}
 
-	pub fn loc(&mut self, ty: u8, pos: i32) -> Result<()> {
-		self.writer.write(&hi(1))?;
-		self.writer.write(&[ty])?;
-		self.writer.write(&pos.to_le_bytes())?;
-		Ok(())
+	pub fn loc(&mut self, ty: u8, pos: i16) {
+		match ty {
+			0 => self.cursor[0] = pos,
+			1 => self.cursor[1] = pos,
+			2 => self.cursor[0] += pos,
+			3 => self.cursor[1] += pos,
+			_ => panic!(),
+		}
 	}
 
 	pub fn flush(&mut self) -> Result<()> {
-		self.writer.flush()
+		// FIXME: damage
+		self.writer.write(&[0])?;
+		self.writer.write(&0i16.to_le_bytes())?;
+		self.writer.write(&0i16.to_le_bytes())?;
+		self.writer.write(&self.size[0].to_le_bytes())?;
+		self.writer.write(&self.size[1].to_le_bytes())?;
+		for line in self.buffer.iter() {
+			for cell in line.iter() {
+				self.writer.write(&cell.0.to_le_bytes())?;
+				self.writer.write(&cell.1.to_le_bytes())?;
+			}
+		}
+		self.writer.flush()?;
+		Ok(())
 	}
 }
 
 pub struct ReadHalf {
 	stream: UnixStream,
-	buf: [u8; 1024],
+	buf: [u8; 32768],
 	event_queue: VecDeque<ServerMsg>,
 }
 
@@ -75,7 +109,7 @@ impl ReadHalf {
 	pub fn new(stream: UnixStream) -> Self {
 		Self {
 			stream,
-			buf: [0; 1024],
+			buf: [0; 32768],
 			event_queue: VecDeque::new(),
 		}
 	}

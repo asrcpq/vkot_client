@@ -1,4 +1,4 @@
-remove byteorder dep
+handle buffer at client side
 
 todo:
 split server msg

@@ -28,26 +28,26 @@ impl VteActor {
 						boffset = 8;
 					} else if arg == 0 {
 						boffset = 0;
-						self.wh.set_color([1.0; 4])?;
+						self.wh.set_color(u32::MAX);
 					} else if (30..=37).contains(&arg) {
 						self.wh.set_color(self
 							.color_table
 							.rgb_from_256color(arg as u8 - 30 + boffset)
-						)?;
+						);
 					}
 				}
 			}
 			'A' => {
-				self.wh.loc(3, -(simple[0] as i32))?;
+				self.wh.loc(3, -(simple[0] as i16));
 			}
 			'B' => {
-				self.wh.loc(3, simple[0] as i32)?;
+				self.wh.loc(3, simple[0] as i16);
 			}
 			'C' => {
-				self.wh.loc(2, simple[0] as i32)?;
+				self.wh.loc(2, simple[0] as i16);
 			}
 			'D' => {
-				self.wh.loc(2, -(simple[0] as i32))?;
+				self.wh.loc(2, -(simple[0] as i16));
 			}
 			_ => {
 				eprintln!("unknown csi {}", action)
@@ -59,14 +59,14 @@ impl VteActor {
 
 impl vte::Perform for VteActor {
 	fn print(&mut self, c: char) {
-		self.wh.print(c).unwrap();
+		self.wh.print(c);
 		self.wh.flush().unwrap();
 	}
 
 	fn execute(&mut self, b: u8) {
 		if b == b'\n' {
-			self.wh.loc(3, 1).unwrap();
-			self.wh.loc(0, 0).unwrap();
+			self.wh.loc(3, 1);
+			self.wh.loc(0, 0);
 			return
 		}
 	}
@@ -112,7 +112,7 @@ fn cmd_thread(mut stdout: ChildStdout, tx: Sender<Msg>) {
 fn main() {
 	let mut parser = vte::Parser::new();
 	let (rh, mut wh) = Client::default().unwrap();
-	wh.reset().unwrap();
+	wh.reset();
 	let mut va = VteActor::new(wh);
 	let args = std::env::args().collect::<Vec<String>>();
 	let child = Command::new(&args[1])
