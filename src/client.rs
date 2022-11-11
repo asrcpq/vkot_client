@@ -91,6 +91,7 @@ impl WriteHalf {
 		}
 	}
 
+	// simple putchar in text mode
 	pub fn put(&mut self, ch: char) -> Result<()> {
 		self.print(ch);
 		self.writer.write(&[1])?;
@@ -99,7 +100,7 @@ impl WriteHalf {
 		self.writer.write(&(ch as u32).to_le_bytes())?;
 		self.writer.write(&self.current_color.to_le_bytes())?;
 		self.shift_by_width(ch);
-		// TODO: send cursor
+		self.send_cursor()?;
 		self.writer.flush()?;
 		Ok(())
 	}
@@ -142,18 +143,31 @@ impl WriteHalf {
 		self.cursor_limit();
 	}
 
-	pub fn refresh(&mut self) -> Result<()> {
+	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
 		self.writer.write(&[0])?;
-		self.writer.write(&0i16.to_le_bytes())?;
-		self.writer.write(&0i16.to_le_bytes())?;
-		self.writer.write(&self.size[0].to_le_bytes())?;
-		self.writer.write(&self.size[1].to_le_bytes())?;
+		self.writer.write(&area[0].to_le_bytes())?;
+		self.writer.write(&area[1].to_le_bytes())?;
+		self.writer.write(&area[2].to_le_bytes())?;
+		self.writer.write(&area[3].to_le_bytes())?;
 		for line in self.buffer.iter() {
 			for cell in line.iter() {
 				self.writer.write(&cell.0.to_le_bytes())?;
 				self.writer.write(&cell.1.to_le_bytes())?;
 			}
 		}
+		Ok(())
+	}
+
+	pub fn send_cursor(&mut self) -> Result<()> {
+		self.writer.write(&[2])?;
+		self.writer.write(&self.cursor[0].to_le_bytes())?;
+		self.writer.write(&self.cursor[1].to_le_bytes())?;
+		Ok(())
+	}
+
+	pub fn refresh(&mut self) -> Result<()> {
+		self.send_area([0, 0, self.size[0], self.size[1]])?;
+		self.send_cursor()?;
 		self.writer.flush()?;
 		Ok(())
 	}

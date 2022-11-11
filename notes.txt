@@ -1,4 +1,4 @@
-add refresh
+send cursor
 
 todo:
 split server msg
