@@ -56,7 +56,6 @@ impl WriteHalf {
 	}
 
 	pub fn tab(&mut self) {
-		eprintln!("{:?} {:?}", self.cursor, self.size);
 		let cx = self.cursor[0] as usize;
 		let target = (cx / 8 + 1) * 8;
 		if target >= self.size[0] as usize {
@@ -137,7 +136,10 @@ impl WriteHalf {
 				self.erase_line(0);
 				[self.cursor[1] + 1, self.size[1]]
 			}
-			1 => [0, self.cursor[1] + 1],
+			1 => {
+				self.erase_line(1);
+				[0, self.cursor[1]]
+			}
 			_ => [0, self.size[1]],
 		};
 		for row in begin..end {

@@ -104,6 +104,9 @@ impl vte::Perform for VteActor {
 				self.wh.tab();
 				self.wh.send_damage().unwrap();
 			}
+			b'\x07' => {
+				eprintln!("beep!")
+			}
 			b => eprintln!("control char received: {}", b),
 		}
 	}
