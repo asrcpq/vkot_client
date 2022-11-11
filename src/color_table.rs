@@ -2,19 +2,22 @@ pub struct ColorTable {
 	data: Vec<u32>,
 }
 
+fn byte2num(b: u8) -> u32 {
+	let result = if (b'a'..=b'z').contains(&b) {
+		b - b'a' + 10
+	} else if (b'A'..=b'Z').contains(&b) {
+		b - b'A' + 10
+	} else if (b'0'..=b'9').contains(&b) {
+		b - b'0'
+	} else {
+		panic!()
+	};
+	result as u32
+}
+
 // big endian
 fn byte2hex(b1: u8, b2: u8) -> u32 {
-	let mut result = if b2 > b'a' {
-		b2 - b'a' + 10
-	} else {
-		b2
-	};
-	result += if b1 > b'a' {
-		b1 - b'a' + 10
-	} else {
-		b1
-	} * 16;
-	result as u32
+	byte2num(b2) + byte2num(b1) * 16
 }
 
 impl Default for ColorTable {

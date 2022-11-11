@@ -26,7 +26,7 @@ fn cmd_thread(fd: RawFd, tx: Sender<Msg>) {
 		let byte = match byte {
 			Ok(b) => b,
 			Err(_) => {
-				eprintln!("Error: byte read");
+				eprintln!("EOF");
 				break
 			}
 		};
@@ -55,7 +55,7 @@ impl VteMaster {
 		let tx2 = tx.clone();
 		std::thread::spawn(move || vtc_thread(rh, tx));
 		std::thread::spawn(move || cmd_thread(master, tx2));
-		// let mut file = unsafe {std::fs::File::from_raw_fd(master)};
+		let mut file = unsafe {std::fs::File::from_raw_fd(master)};
 		loop {
 			match rx.recv().unwrap() {
 				Msg::CmdRead(byte) => {
@@ -66,7 +66,7 @@ impl VteMaster {
 						ServerMsg::Getch(ch) => {
 							if ch < 127 {
 								eprintln!("{}", ch);
-								// file.write(&[ch as u8]).unwrap();
+								file.write(&[ch as u8]).unwrap();
 							}
 						}
 						ServerMsg::Resized(new_size) => {

@@ -4,7 +4,7 @@ use nix::sys::stat::Mode;
 use nix::unistd;
 use vkot_client::ansiwrap::VteMaster;
 
-use std::os::unix::io::{IntoRawFd, RawFd};
+use std::os::unix::io::IntoRawFd;
 use std::path::Path;
 
 fn start() {

@@ -18,7 +18,12 @@ impl VteActor {
 		match action {
 			'm' => {
 				let mut boffset = 0;
-				for arg in simple.into_iter() {
+				let mut iter = simple.into_iter();
+				loop {
+					let arg = match iter.next() {
+						Some(x) => x,
+						None => break,
+					};
 					if arg == 1 {
 						boffset = 8;
 					} else if arg == 0 {
@@ -29,6 +34,17 @@ impl VteActor {
 							.color_table
 							.rgb_from_256color(arg as u8 - 30 + boffset)
 						);
+					} else if arg == 38 {
+						let nx = iter.next().unwrap();
+						if nx == 5 {
+							let nx = iter.next().unwrap();
+							self.wh.set_color(self
+								.color_table
+								.rgb_from_256color(nx as u8)
+							);
+						} else {
+							unimplemented!();
+						}
 					}
 				}
 			}
@@ -52,8 +68,14 @@ impl VteActor {
 				self.wh.erase_line(simple.get(0).cloned().unwrap_or(0));
 				self.wh.flush().unwrap();
 			}
+			'H' | 'f' => {
+				let px = simple.get(0).cloned().unwrap_or(0) as i16;
+				let py = simple.get(1).cloned().unwrap_or(0) as i16;
+				self.wh.loc(0, px);
+				self.wh.loc(1, py);
+			}
 			_ => {
-				eprintln!("unknown csi {}", action)
+				eprintln!("unknown csi {}: {:?}", action, simple)
 			}
 		}
 		Ok(())

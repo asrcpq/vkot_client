@@ -1,4 +1,4 @@
-pty compatibility mode
+fix 256 color
 
 todo:
 split server msg
