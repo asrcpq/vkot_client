@@ -84,14 +84,27 @@ impl VteActor {
 
 impl vte::Perform for VteActor {
 	fn print(&mut self, c: char) {
-		self.wh.put(c).unwrap();
+		self.wh.put(c, true).unwrap();
 	}
 
 	fn execute(&mut self, b: u8) {
-		if b == b'\n' {
-			self.wh.loc(3, 1);
-			self.wh.loc(0, 0);
-			return
+		match b {
+			b'\n' => {
+				self.wh.loc(3, 1);
+				self.wh.loc(0, 0);
+				return
+			}
+			b'\x08' => {
+				self.wh.backspace();
+			}
+			b'\x0d' => {
+				self.wh.loc(0, 0);
+			}
+			b'\x09' => {
+				self.wh.tab();
+				self.wh.send_damage().unwrap();
+			}
+			b => eprintln!("control char received: {}", b),
 		}
 	}
 

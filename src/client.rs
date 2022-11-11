@@ -55,32 +55,58 @@ impl WriteHalf {
 		self.refresh().unwrap();
 	}
 
-	pub fn cursor_limit(&mut self) {
+	pub fn tab(&mut self) {
+		eprintln!("{:?} {:?}", self.cursor, self.size);
+		let cx = self.cursor[0] as usize;
+		let target = (cx / 8 + 1) * 8;
+		if target >= self.size[0] as usize {
+			return
+		}
+		for i in cx..target {
+			self.buffer[self.cursor[1] as usize][i] = ECELL;
+		}
+		self.cursor[0] = target as i16;
+	}
+
+	pub fn fixcur(&mut self) {
 		if self.cursor[0] < 0{
 			self.cursor[0] = 0;
 		}
 		if self.cursor[1] < 0{
 			self.cursor[1] = 0;
 		}
-		if self.cursor[0] >= self.size[0] {
-			// TODO: prevent crash when size = 0
-			self.cursor[0] = self.size[0] - 1;
+		// TODO: prevent crash/loop for zero size
+		while self.cursor[0] >= self.size[0] {
+			self.cursor[1] += 1;
+			self.cursor[0] -= self.size[0]
 		}
-		if self.cursor[1] >= self.size[1] {
-			self.cursor[1] = self.size[1] - 1;
+		// simple wrapping
+		while self.cursor[1] >= self.size[1] {
+			self.cursor[1] -= self.size[1];
 		}
 	}
 
 	pub fn print(&mut self, ch: char) {
-		if ch == '\n' {
-			self.cursor[0] = 0;
-			self.cursor[1] += 1;
-			return
+		match ch {
+			'\n' => {
+				self.cursor[0] = 0;
+				self.cursor[1] += 1;
+				self.fixcur();
+				return
+			}
+			_ => {
+				let cx = self.cursor[0] as usize;
+				let cy = self.cursor[1] as usize;
+				let chu = ch as u32;
+				self.buffer[cy][cx] = (chu, self.current_color);
+			}
 		}
-		let cx = self.cursor[0] as usize;
-		let cy = self.cursor[1] as usize;
-		let chu = ch as u32;
-		self.buffer[cy][cx] = (chu, self.current_color);
+	}
+
+	pub fn backspace(&mut self) {
+		self.cursor[0] -= 1;
+		self.fixcur();
+		self.put(' ', false).unwrap();
 	}
 
 	pub fn shift_by_width(&mut self, ch: char) {
@@ -91,23 +117,26 @@ impl WriteHalf {
 		}
 	}
 
-	// simple putchar in text mode
-	pub fn put(&mut self, ch: char) -> Result<()> {
+	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
 		self.print(ch);
 		self.writer.write(&[1])?;
 		self.writer.write(&self.cursor[0].to_le_bytes())?;
 		self.writer.write(&self.cursor[1].to_le_bytes())?;
 		self.writer.write(&(ch as u32).to_le_bytes())?;
 		self.writer.write(&self.current_color.to_le_bytes())?;
-		self.shift_by_width(ch);
+		if shift { self.shift_by_width(ch); }
 		self.send_cursor()?;
 		self.writer.flush()?;
 		Ok(())
 	}
 
 	pub fn erase_display(&mut self, code: u16) {
+		eprintln!("erase disp");
 		let [begin, end] =match code {
-			0 => [self.cursor[1], self.size[1]],
+			0 => {
+				self.erase_line(0);
+				[self.cursor[1] + 1, self.size[1]]
+			}
 			1 => [0, self.cursor[1] + 1],
 			_ => [0, self.size[1]],
 		};
@@ -117,6 +146,7 @@ impl WriteHalf {
 	}
 
 	pub fn erase_line(&mut self, code: u16) {
+		eprintln!("erase line");
 		let [begin, end] =match code {
 			0 => [self.cursor[0], self.size[0]],
 			1 => [0, self.cursor[0] + 1],
@@ -140,7 +170,7 @@ impl WriteHalf {
 			3 => self.cursor[1] += pos,
 			_ => panic!(),
 		}
-		self.cursor_limit();
+		self.fixcur();
 	}
 
 	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
