@@ -1,4 +1,4 @@
-handle buffer at client side
+prevent overflow
 
 todo:
 split server msg

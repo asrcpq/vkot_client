@@ -48,6 +48,22 @@ impl WriteHalf {
 		self.flush().unwrap();
 	}
 
+	pub fn cursor_test(&self) -> bool {
+		if self.cursor[0] < 0{
+			return false
+		}
+		if self.cursor[1] < 0{
+			return false
+		}
+		if self.cursor[0] >= self.size[0] {
+			return false
+		}
+		if self.cursor[1] >= self.size[1] {
+			return false
+		}
+		true
+	}
+
 	pub fn print(&mut self, ch: char) {
 		if ch == '\n' {
 			self.cursor[0] = 0;
@@ -62,6 +78,7 @@ impl WriteHalf {
 			self.loc(2, 1);
 		}
 		let ch = ch as u32;
+		if !self.cursor_test() { return }
 		self.buffer[cy][cx] = (ch, self.current_color);
 	}
 
