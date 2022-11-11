@@ -1,4 +1,4 @@
-move ansiwrap to module
+pty compatibility mode
 
 todo:
 split server msg

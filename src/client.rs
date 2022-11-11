@@ -17,7 +17,7 @@ pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
 	buffer: Vec<Vec<(u32, u32)>>,
 	size: [i16; 2],
-	damage: [i16; 4],
+	_damage: [i16; 4],
 	cursor: [i16; 2],
 	current_color: u32,
 }
@@ -28,7 +28,7 @@ impl WriteHalf {
 			writer: BufWriter::new(stream),
 			buffer: vec![vec![ECELL; 80]; 24],
 			size: [80, 24],
-			damage: [0; 4],
+			_damage: [0; 4],
 			cursor: [0; 2],
 			current_color: u32::MAX,
 		}
