@@ -65,7 +65,6 @@ impl VteMaster {
 					match vtc {
 						ServerMsg::Getch(ch) => {
 							if ch < 127 {
-								eprintln!("{}", ch);
 								file.write(&[ch as u8]).unwrap();
 							}
 						}

@@ -55,20 +55,20 @@ impl WriteHalf {
 		self.flush().unwrap();
 	}
 
-	pub fn cursor_test(&self) -> bool {
+	pub fn cursor_limit(&mut self) {
 		if self.cursor[0] < 0{
-			return false
+			self.cursor[0] = 0;
 		}
 		if self.cursor[1] < 0{
-			return false
+			self.cursor[1] = 0;
 		}
 		if self.cursor[0] >= self.size[0] {
-			return false
+			// TODO: prevent crash when size = 0
+			self.cursor[0] = self.size[0] - 1;
 		}
 		if self.cursor[1] >= self.size[1] {
-			return false
+			self.cursor[1] = self.size[1] - 1;
 		}
-		true
 	}
 
 	pub fn print(&mut self, ch: char) {
@@ -79,14 +79,13 @@ impl WriteHalf {
 		}
 		let cx = self.cursor[0] as usize;
 		let cy = self.cursor[1] as usize;
+		let chu = ch as u32;
+		self.buffer[cy][cx] = (chu, self.current_color);
 		if wide_test(ch) {
 			self.loc(2, 2);
 		} else {
 			self.loc(2, 1);
 		}
-		let ch = ch as u32;
-		if !self.cursor_test() { return }
-		self.buffer[cy][cx] = (ch, self.current_color);
 	}
 
 	pub fn put(&mut self, ch: char) -> Result<()> {
@@ -135,6 +134,7 @@ impl WriteHalf {
 			3 => self.cursor[1] += pos,
 			_ => panic!(),
 		}
+		self.cursor_limit();
 	}
 
 	pub fn flush(&mut self) -> Result<()> {

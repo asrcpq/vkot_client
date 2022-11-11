@@ -33,7 +33,7 @@ fn start() {
 
 			unistd::dup2(slave_fd, 0).unwrap(); // stdin
 			unistd::dup2(slave_fd, 1).unwrap(); // stdout
-			//unistd::dup2(slave_fd, 2).unwrap(); // stderr
+			unistd::dup2(slave_fd, 2).unwrap(); // stderr
 			unistd::close(slave_fd).unwrap();
 
 			use std::ffi::CString;

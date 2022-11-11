@@ -1,4 +1,4 @@
-fix 256 color
+limit cursor pos
 
 todo:
 split server msg
