@@ -11,6 +11,8 @@ pub fn wide_test(ch: char) -> bool {
 	}
 }
 
+const ECELL: (u32, u32) = (b' ' as u32, u32::MAX);
+
 pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
 	buffer: Vec<Vec<(u32, u32)>>,
@@ -24,9 +26,7 @@ impl WriteHalf {
 	pub fn new(stream: UnixStream) -> Self {
 		Self {
 			writer: BufWriter::new(stream),
-			buffer: vec![vec![
-				(b' ' as u32, u32::MAX); 80
-			]; 24],
+			buffer: vec![vec![ECELL; 80]; 24],
 			size: [80, 24],
 			damage: [0; 4],
 			cursor: [0; 2],
@@ -37,9 +37,7 @@ impl WriteHalf {
 	pub fn clear(&mut self) {
 		let sx = self.size[0] as usize;
 		let sy = self.size[1] as usize;
-		self.buffer = vec![vec![
-			(b' ' as u32, u32::MAX); sx
-		]; sy];
+		self.buffer = vec![vec![ECELL; sx]; sy];
 	}
 
 	pub fn reset(&mut self) {
@@ -82,7 +80,39 @@ impl WriteHalf {
 		self.buffer[cy][cx] = (ch, self.current_color);
 	}
 
-	// pub fn resize()
+	pub fn put(&mut self, ch: char) -> Result<()> {
+		self.print(ch);
+		self.writer.write(&[1])?;
+		self.writer.write(&self.cursor[0].to_le_bytes())?;
+		self.writer.write(&self.cursor[1].to_le_bytes())?;
+		self.writer.write(&(ch as u32).to_le_bytes())?;
+		self.writer.write(&self.current_color.to_le_bytes())?;
+		self.writer.flush()?;
+		Ok(())
+	}
+
+	pub fn erase_display(&mut self, code: u16) {
+		let [begin, end] =match code {
+			0 => [self.cursor[1], self.size[1]],
+			1 => [0, self.cursor[1] + 1],
+			_ => [0, self.size[1]],
+		};
+		for row in begin..end {
+			self.buffer[row as usize] = vec![ECELL; self.size[0] as usize];
+		}
+	}
+
+	pub fn erase_line(&mut self, code: u16) {
+		let [begin, end] =match code {
+			0 => [self.cursor[0], self.size[0]],
+			1 => [0, self.cursor[0] + 1],
+			_ => [0, self.size[0]],
+		};
+		let row = &mut self.buffer[self.cursor[1] as usize];
+		for col in begin..end {
+			row[col as usize] = ECELL;
+		}
+	}
 
 	pub fn set_color(&mut self, color: u32) {
 		self.current_color = color;

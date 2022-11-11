@@ -1,4 +1,4 @@
-prevent overflow
+implement erase
 
 todo:
 split server msg

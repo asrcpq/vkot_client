@@ -49,6 +49,14 @@ impl VteActor {
 			'D' => {
 				self.wh.loc(2, -(simple[0] as i16));
 			}
+			'K' => {
+				self.wh.erase_display(simple.get(0).cloned().unwrap_or(0));
+				self.wh.flush().unwrap();
+			}
+			'J' => {
+				self.wh.erase_line(simple.get(0).cloned().unwrap_or(0));
+				self.wh.flush().unwrap();
+			}
 			_ => {
 				eprintln!("unknown csi {}", action)
 			}
@@ -59,8 +67,7 @@ impl VteActor {
 
 impl vte::Perform for VteActor {
 	fn print(&mut self, c: char) {
-		self.wh.print(c);
-		self.wh.flush().unwrap();
+		self.wh.put(c).unwrap();
 	}
 
 	fn execute(&mut self, b: u8) {
