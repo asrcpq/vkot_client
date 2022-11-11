@@ -20,6 +20,7 @@ pub struct WriteHalf {
 	_damage: [i16; 4],
 	cursor: [i16; 2],
 	current_color: u32,
+	eol: bool,
 }
 
 impl WriteHalf {
@@ -31,6 +32,7 @@ impl WriteHalf {
 			_damage: [0; 4],
 			cursor: [0; 2],
 			current_color: u32::MAX,
+			eol: false,
 		}
 	}
 
@@ -74,10 +76,13 @@ impl WriteHalf {
 		if self.cursor[1] < 0{
 			self.cursor[1] = 0;
 		}
-		// TODO: prevent crash/loop for zero size
-		while self.cursor[0] >= self.size[0] {
+		// TODO: prevent crash/loop for 1/0(because of pending eol) size
+		while self.cursor[0] > self.size[0] {
 			self.cursor[1] += 1;
 			self.cursor[0] -= self.size[0]
+		}
+		if self.cursor[0] == self.size[0] && !self.eol {
+			self.eol = true;
 		}
 		// simple wrapping
 		while self.cursor[1] >= self.size[1] {
@@ -85,7 +90,7 @@ impl WriteHalf {
 		}
 	}
 
-	pub fn print(&mut self, ch: char) {
+	fn print(&mut self, ch: char) {
 		match ch {
 			'\n' => {
 				self.cursor[0] = 0;
@@ -111,6 +116,9 @@ impl WriteHalf {
 	}
 
 	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
+		if self.eol {
+			self.loc(2, 1);
+		}
 		self.print(ch);
 		self.writer.write(&[1])?;
 		self.writer.write(&self.cursor[0].to_le_bytes())?;
@@ -124,7 +132,7 @@ impl WriteHalf {
 	}
 
 	pub fn erase_display(&mut self, code: u16) {
-		eprintln!("erase disp");
+		eprintln!("edisp");
 		let [begin, end] =match code {
 			0 => {
 				self.erase_line(0);
@@ -142,7 +150,7 @@ impl WriteHalf {
 	}
 
 	pub fn erase_line(&mut self, code: u16) {
-		eprintln!("erase line");
+		eprintln!("eline");
 		let [begin, end] =match code {
 			0 => [self.cursor[0], self.size[0]],
 			1 => [0, self.cursor[0] + 1],
@@ -159,6 +167,7 @@ impl WriteHalf {
 	}
 
 	pub fn loc(&mut self, ty: u8, pos: i16) {
+		self.eol = false;
 		match ty {
 			0 => self.cursor[0] = pos,
 			1 => self.cursor[1] = pos,
@@ -167,7 +176,8 @@ impl WriteHalf {
 			_ => panic!(),
 		}
 		self.fixcur();
-		self.send_cursor();
+		eprintln!("loc:{}{}{:?}{}", ty, pos, self.cursor, self.eol as u8);
+		self.send_cursor().unwrap();
 		self.writer.flush().unwrap();
 	}
 

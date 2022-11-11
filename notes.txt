@@ -1,4 +1,4 @@
-^H should not erase
+pending eol
 
 todo:
 split server msg
