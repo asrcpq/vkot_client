@@ -1,4 +1,4 @@
-fix cursor
+fix scroll up
 
 todo:
 split server msg

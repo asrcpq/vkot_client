@@ -148,7 +148,7 @@ impl vte::Perform for VteActor {
 				eprintln!("beep!")
 			}
 			0 => {}, // ignore
-			b => eprintln!("uh ctrl: {}", b),
+			b => eprintln!("uh c0: {}", b),
 		}
 	}
 
@@ -161,5 +161,12 @@ impl vte::Perform for VteActor {
 	) {
 		let simple = params.iter().map(|x| x[0]).collect::<Vec<u16>>();
 		self.csi_easy(simple, interm, action).unwrap();
+	}
+
+	fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+		match byte {
+			b'M' => self.wh.scroll(false),
+			_ => eprintln!("uh {:?}", byte as char),
+		}
 	}
 }

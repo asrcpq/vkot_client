@@ -106,11 +106,20 @@ impl WriteHalf {
 			}
 		}
 		if self.cursor[1] >= self.size[1] {
-			self.buffer.push(vec![ECELL; self.size[0] as usize]);
-			self.buffer.remove(0);
-			self.refresh().unwrap();
+			self.scroll(true);
 			self.cursor[1] = self.size[1] - 1;
 		}
+	}
+
+	pub fn scroll(&mut self, down: bool) {
+		if down {
+			self.buffer.push(vec![ECELL; self.size[0] as usize]);
+			self.buffer.remove(0);
+		} else {
+			self.buffer.insert(0, vec![ECELL; self.size[0] as usize]);
+			self.buffer.pop();
+		}
+		self.refresh().unwrap();
 	}
 
 	fn print(&mut self, ch: char) {
