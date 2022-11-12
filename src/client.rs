@@ -232,8 +232,6 @@ impl WriteHalf {
 			self.limit_cursor();
 		}
 		self.eol = false;
-		// self.send_cursor().unwrap();
-		self.writer.flush().unwrap();
 	}
 
 	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
@@ -306,9 +304,11 @@ impl WriteHalf {
 	}
 }
 
+const BUFSIZE: usize = 2 << 10;
+
 pub struct ReadHalf {
 	stream: UnixStream,
-	buf: [u8; 32768],
+	buf: Vec<u8>,
 	event_queue: VecDeque<ServerMsg>,
 }
 
@@ -316,7 +316,7 @@ impl ReadHalf {
 	pub fn new(stream: UnixStream) -> Self {
 		Self {
 			stream,
-			buf: [0; 32768],
+			buf: vec![0; BUFSIZE],
 			event_queue: VecDeque::new(),
 		}
 	}

@@ -1,4 +1,4 @@
-simple damage tracking
+greatly performance improvement
 
 todo:
 split server msg
