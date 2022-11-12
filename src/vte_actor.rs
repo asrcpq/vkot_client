@@ -77,10 +77,10 @@ impl VteActor {
 				self.wh.loc(3, simple[0].max(1) as i16, false);
 			}
 			'C' => {
-				self.wh.loc(2, simple[0].min(1) as i16, false);
+				self.wh.loc(2, simple[0].max(1) as i16, false);
 			}
 			'D' => {
-				self.wh.loc(2, -(simple[0].min(1) as i16), false);
+				self.wh.loc(2, -(simple[0].max(1) as i16), false);
 			}
 			'K' => {
 				let ty = simple.get(0).cloned().unwrap_or(0);
