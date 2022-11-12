@@ -12,7 +12,7 @@ fn read_i16(bytes: &[u8]) -> i16 {
 pub enum ServerMsg {
 	Getch(u32),
 	Resized([i16; 2]),
-	Skey([u8; 2]),
+	Skey([u8; 3]),
 }
 
 impl ServerMsg {
@@ -34,10 +34,11 @@ impl ServerMsg {
 					Self::Resized([u1, u2])
 				}
 				2 => {
-					let b1 = buf[*offset];
-					let b2 = buf[*offset + 1];
-					*offset += 2;
-					Self::Skey([b1, b2])
+					let d = buf[*offset];
+					let b1 = buf[*offset + 1];
+					let b2 = buf[*offset + 2];
+					*offset += 3;
+					Self::Skey([d, b1, b2])
 				}
 				c => return Err(anyhow!("unknown message type {:?}", c as char))
 			};

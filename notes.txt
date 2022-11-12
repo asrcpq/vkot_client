@@ -1,4 +1,4 @@
-greatly performance improvement
+alt = escape
 
 todo:
 split server msg

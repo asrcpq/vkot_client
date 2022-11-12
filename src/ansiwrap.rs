@@ -8,7 +8,7 @@ use vte::Parser;
 use crate::client::{Client, ReadHalf};
 use crate::msg::ServerMsg;
 use crate::vte_actor::VteActor;
-use skey::Skey;
+use skey::{Skey, SkType};
 
 nix::ioctl_write_ptr_bad!(tiocswinsz, nix::libc::TIOCSWINSZ, Winsize);
 
@@ -96,6 +96,7 @@ impl VteMaster {
 		result
 	}
 
+	// return true = exit
 	fn proc_msg(&mut self, file: &mut File, msg: Msg) -> bool {
 		match msg {
 			Msg::CmdRead(bytes) => {
@@ -120,8 +121,11 @@ impl VteMaster {
 						} else {
 							return false
 						};
-						match skey {
-							Skey::Direction(x) => {
+						if !skey.down {
+							return false
+						}
+						match skey.ty {
+							SkType::Direction(x) => {
 								match x {
 									0 => {
 										file.write(b"\x1b[D").unwrap();
@@ -136,6 +140,11 @@ impl VteMaster {
 										file.write(b"\x1b[B").unwrap();
 									}
 									_ => {},
+								}
+							}
+							SkType::Modifier(x) => {
+								if x == 3 {
+									file.write(b"\x1b").unwrap();
 								}
 							}
 							_ => {},
