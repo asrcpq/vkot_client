@@ -9,6 +9,7 @@ use crate::client::{Client, ReadHalf};
 use crate::msg::ServerMsg;
 use crate::vte_actor::VteActor;
 use skey::{Skey, SkType};
+use skey::modtrack::ModifierTracker;
 
 nix::ioctl_write_ptr_bad!(tiocswinsz, nix::libc::TIOCSWINSZ, Winsize);
 
@@ -64,6 +65,7 @@ pub struct VteMaster {
 	master: RawFd,
 	parser: Parser,
 	sync_debug: Option<u64>,
+	modtrack: ModifierTracker,
 }
 
 impl VteMaster {
@@ -98,6 +100,7 @@ impl VteMaster {
 			master,
 			parser,
 			sync_debug,
+			modtrack: Default::default(),
 		};
 		result.resize(tsize);
 		result
@@ -151,12 +154,20 @@ impl VteMaster {
 									3 => {
 										file.write(b"\x1b[B").unwrap();
 									}
+									6 | 7 => {
+										if self.modtrack.shift {
+											let down = x == 7;
+											self.va.wh.scroll_history_page(down);
+										}
+									}
 									_ => {},
 								}
 							}
 							SkType::Modifier(x) => {
 								if x == 3 {
 									file.write(b"\x1b").unwrap();
+								} else {
+									self.modtrack.update_skey(skey);
 								}
 							}
 							_ => {},
@@ -180,6 +191,7 @@ impl VteMaster {
 		}
 	}
 
+	// TODO: only react(sending rendering info) at drawing msg
 	fn run_lockframe(&mut self, mut file: File, rx: Receiver<Msg>) {
 		enum RecvType {
 			Block,

@@ -15,6 +15,8 @@ const ECELL: (u32, u32) = (b' ' as u32, u32::MAX);
 
 pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
+	history: VecDeque<Vec<(u32, u32)>>,
+	histcur: usize,
 	buffer: Vec<Vec<(u32, u32)>>,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
@@ -28,6 +30,8 @@ impl WriteHalf {
 	pub fn new(stream: UnixStream) -> Self {
 		Self {
 			writer: BufWriter::new(stream),
+			history: VecDeque::new(),
+			histcur: 0,
 			buffer: vec![vec![ECELL; 80]; 24],
 			size: [80, 24],
 			damage: [0; 4],
@@ -116,11 +120,28 @@ impl WriteHalf {
 		self.damage_all();
 		if down {
 			self.buffer.push(vec![ECELL; self.size[0] as usize]);
-			self.buffer.remove(0);
+			self.history.push_front(self.buffer.remove(0));
+			let hlen = self.history.len();
+			if hlen > 10000 {
+				self.history.drain(10001..);
+			}
 		} else {
 			self.buffer.insert(0, vec![ECELL; self.size[0] as usize]);
 			self.buffer.pop();
 		}
+	}
+
+	pub fn scroll_history_page(&mut self, down: bool) {
+		let dy = self.size[1] as usize / 2;
+		if down {
+			self.histcur = self.histcur.saturating_sub(dy)
+		} else {
+			self.histcur += dy;
+			self.histcur = self.histcur.min(self.history.len());
+		}
+		self.damage_all();
+		// TODO: investigate into when and where to make render sending call
+		self.send_damage().unwrap();
 	}
 
 	fn print(&mut self, ch: char) {
@@ -241,9 +262,25 @@ impl WriteHalf {
 		self.writer.write(&area[1].to_le_bytes())?;
 		self.writer.write(&area[2].to_le_bytes())?;
 		self.writer.write(&area[3].to_le_bytes())?;
+
+		// respect to hist
 		for y in area[1] as usize..area[3] as usize {
 			for x in area[0] as usize..area[2] as usize {
-				let cell = self.buffer[y][x];
+				//         <-----> s = 7
+				// scr:    xxxxxxx
+				// hst: xxxxxxx<-- h = 3
+				//        ^ y = 2, out
+				let cell = if y < self.histcur {
+					let yy = self.histcur - y - 1;
+					self.history[yy][x]
+				} else {
+					let yy = y - self.histcur;
+					self.buffer[yy][x]
+				};
+
+				// old simple get
+				// let cell = self.buffer[y][x];
+
 				self.writer.write(&cell.0.to_le_bytes())?;
 				self.writer.write(&cell.1.to_le_bytes())?;
 			}

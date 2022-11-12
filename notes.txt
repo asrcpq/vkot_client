@@ -1,4 +1,4 @@
-fix cursor pos
+impl scrollback
 
 todo:
 split server msg
