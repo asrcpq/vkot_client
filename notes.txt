@@ -1,4 +1,4 @@
-add debug sync
+fix cursor pos
 
 todo:
 split server msg
