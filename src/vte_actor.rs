@@ -142,7 +142,6 @@ impl vte::Perform for VteActor {
 			}
 			b'\x09' => {
 				self.wh.tab();
-				self.wh.send_damage().unwrap();
 			}
 			b'\x07' => {
 				eprintln!("beep!")

@@ -1,7 +1,9 @@
 use nix::pty::Winsize;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::os::unix::io::{RawFd, FromRawFd};
 use std::sync::mpsc::{channel, Sender};
+use vte::Parser;
 
 use crate::client::{Client, ReadHalf};
 use crate::msg::ServerMsg;
@@ -53,6 +55,7 @@ pub struct VteMaster {
 	va: VteActor,
 	rh: Option<ReadHalf>,
 	master: RawFd,
+	parser: Parser,
 }
 
 impl VteMaster {
@@ -65,6 +68,7 @@ impl VteMaster {
 	pub fn new(master: RawFd) -> Self {
 		let (mut rh, mut wh) = Client::default().unwrap();
 		let event = rh.poll_event().unwrap();
+		let parser = vte::Parser::new();
 		let tsize = if let ServerMsg::Resized(tsize) = event {
 			tsize
 		} else {
@@ -79,66 +83,87 @@ impl VteMaster {
 			va,
 			rh: Some(rh),
 			master,
+			parser,
 		};
 		result.resize(tsize);
 		result
 	}
 
-	pub fn run(&mut self, master: RawFd) {
-		let mut parser = vte::Parser::new();
+	fn proc_msg(&mut self, file: &mut File, msg: Msg) -> bool {
+		match msg {
+			Msg::CmdRead(byte) => {
+				// if byte > 0 {eprint!("{:?}", byte as char);}
+				self.parser.advance(&mut self.va, byte);
+			}
+			Msg::Vtc(vtc) => {
+				match vtc {
+					ServerMsg::Getch(ch) => {
+						if ch < 127 {
+							file.write(&[ch as u8]).unwrap();
+						}
+					}
+					ServerMsg::Resized(new_size) => {
+						self.resize(new_size);
+					},
+					ServerMsg::Skey(bytes) => {
+						let skey = if let Some(skey) = Skey::des(bytes) {
+							skey
+						} else {
+							return false
+						};
+						match skey {
+							Skey::Direction(x) => {
+								match x {
+									0 => {
+										file.write(b"\x1b[D").unwrap();
+									}
+									1 => {
+										file.write(b"\x1b[A").unwrap();
+									}
+									2 => {
+										file.write(b"\x1b[C").unwrap();
+									}
+									3 => {
+										file.write(b"\x1b[B").unwrap();
+									}
+									_ => {},
+								}
+							}
+							_ => {},
+						}
+					},
+				}
+			},
+			Msg::Exit => return true,
+		}
+		false
+	}
 
+	pub fn run(&mut self, master: RawFd) {
 		let (tx, rx) = channel();
 		let tx2 = tx.clone();
 		let rh = self.rh.take().unwrap();
 		std::thread::spawn(move || vtc_thread(rh, tx));
 		std::thread::spawn(move || cmd_thread(master, tx2));
-		let mut file = unsafe {std::fs::File::from_raw_fd(master)};
+		let mut file = unsafe {File::from_raw_fd(master)};
+		let mut tryr = true;
 		loop {
-			match rx.recv().unwrap() {
-				Msg::CmdRead(byte) => {
-					// if byte > 0 {eprint!("{:?}", byte as char);}
-					parser.advance(&mut self.va, byte);
-				}
-				Msg::Vtc(vtc) => {
-					match vtc {
-						ServerMsg::Getch(ch) => {
-							if ch < 127 {
-								file.write(&[ch as u8]).unwrap();
-							}
-						}
-						ServerMsg::Resized(new_size) => {
-							self.resize(new_size);
-						},
-						ServerMsg::Skey(bytes) => {
-							let skey = if let Some(skey) = Skey::des(bytes) {
-								skey
-							} else {
-								continue
-							};
-							match skey {
-								Skey::Direction(x) => {
-									match x {
-										0 => {
-											file.write(b"\x1b[D").unwrap();
-										}
-										1 => {
-											file.write(b"\x1b[A").unwrap();
-										}
-										2 => {
-											file.write(b"\x1b[C").unwrap();
-										}
-										3 => {
-											file.write(b"\x1b[B").unwrap();
-										}
-										_ => {},
-									}
-								}
-								_ => {},
-							}
-						},
+			let result = if tryr {
+				rx.try_recv().ok()
+			} else {
+				rx.recv().ok()
+			};
+			match result {
+				Some(msg) => {
+					if self.proc_msg(&mut file, msg) {
+						return
 					}
-				},
-				Msg::Exit => break,
+					tryr = true;
+				}
+				None => {
+					self.va.wh.send_damage().unwrap();
+					tryr = false;
+				}
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-send erase with blit
+simple damage tracking
 
 todo:
 split server msg

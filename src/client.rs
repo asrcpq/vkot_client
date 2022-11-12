@@ -18,7 +18,7 @@ pub struct WriteHalf {
 	buffer: Vec<Vec<(u32, u32)>>,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
-	_damage: [i16; 4],
+	damage: [i16; 4],
 	cursor: [i16; 2],
 	current_color: u32,
 	eol: bool,
@@ -30,7 +30,7 @@ impl WriteHalf {
 			writer: BufWriter::new(stream),
 			buffer: vec![vec![ECELL; 80]; 24],
 			size: [80, 24],
-			_damage: [0; 4],
+			damage: [0; 4],
 			cursor: [0; 2],
 			current_color: u32::MAX,
 			eol: false,
@@ -113,6 +113,7 @@ impl WriteHalf {
 	}
 
 	pub fn scroll(&mut self, down: bool) {
+		self.damage_all();
 		if down {
 			self.buffer.push(vec![ECELL; self.size[0] as usize]);
 			self.buffer.remove(0);
@@ -120,7 +121,6 @@ impl WriteHalf {
 			self.buffer.insert(0, vec![ECELL; self.size[0] as usize]);
 			self.buffer.pop();
 		}
-		self.refresh().unwrap();
 	}
 
 	fn print(&mut self, ch: char) {
@@ -141,7 +141,9 @@ impl WriteHalf {
 	}
 
 	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
-		// std::thread::sleep(std::time::Duration::from_millis(10));
+		// TODO: for wide char, overwrite another cell with space
+		// TODO: check write is same and do not introduce damage
+		// instd::thread::sleep(std::time::Duration::from_millis(10));
 		let wide = wide_test(ch);
 		if self.eol {
 			self.loc(2, 1, true);
@@ -153,11 +155,8 @@ impl WriteHalf {
 			}
 		}
 		self.print(ch);
-		self.writer.write(&[1])?;
-		self.writer.write(&self.cursor[0].to_le_bytes())?;
-		self.writer.write(&self.cursor[1].to_le_bytes())?;
-		self.writer.write(&(ch as u32).to_le_bytes())?;
-		self.writer.write(&self.current_color.to_le_bytes())?;
+
+		self.include_damage([self.cursor[0], self.cursor[1], self.cursor[0] + 1, self.cursor[1] + 1]);
 		if shift {
 			if wide {
 				self.loc(2, 2, true);
@@ -165,8 +164,6 @@ impl WriteHalf {
 				self.loc(2, 1, true);
 			}
 		}
-		self.send_cursor()?;
-		self.writer.flush()?;
 		Ok(())
 	}
 
@@ -186,14 +183,7 @@ impl WriteHalf {
 			self.buffer[row as usize] = vec![ECELL; self.size[0] as usize];
 		}
 		if send {
-			self.writer.write(&[3])?;
-			self.writer.write(&0i16.to_le_bytes())?;
-			self.writer.write(&begin.to_le_bytes())?;
-			self.writer.write(&self.size[1].to_le_bytes())?;
-			self.writer.write(&end.to_le_bytes())?;
-			self.writer.write(&(b' ' as u32).to_le_bytes())?;
-			self.writer.write(&u32::MAX.to_le_bytes())?;
-			self.writer.flush()?;
+			self.include_damage([0, begin, self.size[1], end]);
 		}
 		Ok(())
 	}
@@ -209,14 +199,7 @@ impl WriteHalf {
 			row[col as usize] = ECELL;
 		}
 		if send {
-			self.writer.write(&[3])?;
-			self.writer.write(&begin.to_le_bytes())?;
-			self.writer.write(&self.cursor[1].to_le_bytes())?;
-			self.writer.write(&end.to_le_bytes())?;
-			self.writer.write(&(self.cursor[1] + 1).to_le_bytes())?;
-			self.writer.write(&(b' ' as u32).to_le_bytes())?;
-			self.writer.write(&u32::MAX.to_le_bytes())?;
-			self.writer.flush()?;
+			self.include_damage([begin, self.cursor[1], end, self.cursor[1] + 1]);
 		}
 		Ok(())
 	}
@@ -249,18 +232,20 @@ impl WriteHalf {
 			self.limit_cursor();
 		}
 		self.eol = false;
-		self.send_cursor().unwrap();
+		// self.send_cursor().unwrap();
 		self.writer.flush().unwrap();
 	}
 
 	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
+		if area[2] <= area[0] || area[3] <= area[1] { return Ok(()) }
 		self.writer.write(&[0])?;
 		self.writer.write(&area[0].to_le_bytes())?;
 		self.writer.write(&area[1].to_le_bytes())?;
 		self.writer.write(&area[2].to_le_bytes())?;
 		self.writer.write(&area[3].to_le_bytes())?;
-		for line in self.buffer.iter() {
-			for cell in line.iter() {
+		for y in area[1] as usize..area[3] as usize {
+			for x in area[0] as usize..area[2] as usize {
+				let cell = self.buffer[y][x];
 				self.writer.write(&cell.0.to_le_bytes())?;
 				self.writer.write(&cell.1.to_le_bytes())?;
 			}
@@ -282,9 +267,42 @@ impl WriteHalf {
 		Ok(())
 	}
 
+	pub fn damage_all(&mut self) {
+		self.damage = [0, 0, self.size[0], self.size[1]];
+	}
+
+	pub fn include_damage(&mut self, mut damage: [i16; 4]) {
+		if damage[2] <= damage[0] || damage[3] <= damage[1] { return }
+		if damage[0] < 0 {
+			damage[0] = 0;
+		}
+		if damage[1] < 0 {
+			damage[1] = 0;
+		}
+		if damage[2] > self.size[0] {
+			damage[2] = self.size[0];
+		}
+		if damage[3] > self.size[1] {
+			damage[3] = self.size[1];
+		}
+		if self.damage[2] == 0 {
+			self.damage = damage;
+		}
+
+		self.damage[0] = self.damage[0].min(damage[0]);
+		self.damage[1] = self.damage[1].min(damage[1]);
+		self.damage[2] = self.damage[2].max(damage[2]);
+		self.damage[3] = self.damage[3].max(damage[3]);
+	}
+
 	pub fn send_damage(&mut self) -> Result<()> {
-		// FIXME
-		self.refresh()
+		eprintln!("send dmg {:?}", self.damage);
+		// self.send_area([0, 0, self.size[0], self.size[1]])?;
+		self.send_area(self.damage)?;
+		self.send_cursor()?;
+		self.writer.flush()?;
+		self.damage = [0; 4];
+		Ok(())
 	}
 }
 
