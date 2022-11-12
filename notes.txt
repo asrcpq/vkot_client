@@ -1,4 +1,4 @@
-pending eol
+support arrow key
 
 todo:
 split server msg

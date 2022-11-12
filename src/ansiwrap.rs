@@ -6,6 +6,7 @@ use std::sync::mpsc::{channel, Sender};
 use crate::client::{Client, ReadHalf};
 use crate::msg::ServerMsg;
 use crate::vte_actor::VteActor;
+use skey::Skey;
 
 nix::ioctl_write_ptr_bad!(tiocswinsz, nix::libc::TIOCSWINSZ, Winsize);
 
@@ -107,6 +108,33 @@ impl VteMaster {
 						}
 						ServerMsg::Resized(new_size) => {
 							self.resize(new_size);
+						},
+						ServerMsg::Skey(bytes) => {
+							let skey = if let Some(skey) = Skey::des(bytes) {
+								skey
+							} else {
+								continue
+							};
+							match skey {
+								Skey::Direction(x) => {
+									match x {
+										0 => {
+											file.write(b"\x1b[D").unwrap();
+										}
+										1 => {
+											file.write(b"\x1b[A").unwrap();
+										}
+										2 => {
+											file.write(b"\x1b[C").unwrap();
+										}
+										3 => {
+											file.write(b"\x1b[B").unwrap();
+										}
+										_ => {},
+									}
+								}
+								_ => {},
+							}
 						},
 					}
 				},

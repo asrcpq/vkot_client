@@ -56,16 +56,16 @@ impl VteActor {
 				}
 			}
 			'A' => {
-				self.wh.loc(3, -(simple[0] as i16));
+				self.wh.loc(3, -(simple[0] as i16), false);
 			}
 			'B' => {
-				self.wh.loc(3, simple[0] as i16);
+				self.wh.loc(3, simple[0] as i16, false);
 			}
 			'C' => {
-				self.wh.loc(2, simple[0] as i16);
+				self.wh.loc(2, simple[0] as i16, false);
 			}
 			'D' => {
-				self.wh.loc(2, -(simple[0] as i16));
+				self.wh.loc(2, -(simple[0] as i16), false);
 			}
 			'K' => {
 				self.wh.erase_display(simple.get(0).cloned().unwrap_or(0));
@@ -78,8 +78,8 @@ impl VteActor {
 			'H' | 'f' => {
 				let px = simple.get(0).cloned().unwrap_or(0) as i16;
 				let py = simple.get(1).cloned().unwrap_or(0) as i16;
-				self.wh.loc(0, py);
-				self.wh.loc(1, px);
+				self.wh.loc(0, py, false);
+				self.wh.loc(1, px, false);
 			}
 			'h' | 'l' => {
 				if simple.is_empty() {
@@ -115,15 +115,14 @@ impl vte::Perform for VteActor {
 	fn execute(&mut self, b: u8) {
 		match b {
 			b'\n' => {
-				self.wh.loc(3, 1);
-				self.wh.loc(0, 0);
+				self.wh.newline();
 				return
 			}
 			b'\x08' => {
-				self.wh.loc(2, -1);
+				self.wh.loc(2, -1, true);
 			}
 			b'\x0d' => {
-				self.wh.loc(0, 0);
+				self.wh.loc(0, 0, false);
 			}
 			b'\x09' => {
 				self.wh.tab();

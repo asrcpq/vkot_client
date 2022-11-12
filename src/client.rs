@@ -69,6 +69,22 @@ impl WriteHalf {
 		self.cursor[0] = target as i16;
 	}
 
+	pub fn limit_cursor(&mut self) {
+		if self.cursor[0] < 0{
+			self.cursor[0] = 0;
+		}
+		if self.cursor[1] < 0{
+			self.cursor[1] = 0;
+		}
+		if self.cursor[0] >= self.size[0] {
+			self.cursor[0] = self.size[0] - 1;
+		}
+		if self.cursor[1] >= self.size[1] {
+			self.cursor[1] = self.size[1] - 1;
+		}
+	}
+
+	// TODO: prevent crash/loop for 1/0(because of pending eol) size
 	pub fn fixcur(&mut self) {
 		if self.cursor[0] < 0{
 			self.cursor[0] = 0;
@@ -76,17 +92,24 @@ impl WriteHalf {
 		if self.cursor[1] < 0{
 			self.cursor[1] = 0;
 		}
-		// TODO: prevent crash/loop for 1/0(because of pending eol) size
 		while self.cursor[0] > self.size[0] {
 			self.cursor[1] += 1;
 			self.cursor[0] -= self.size[0]
 		}
-		if self.cursor[0] == self.size[0] && !self.eol {
-			self.eol = true;
+		if self.cursor[0] == self.size[0] {
+			if self.eol {
+				self.cursor[0] = 0;
+				self.cursor[1] += 1;
+			} else {
+				self.eol = true;
+				self.cursor[0] -= 1;
+			}
 		}
-		// simple wrapping
-		while self.cursor[1] >= self.size[1] {
-			self.cursor[1] -= self.size[1];
+		if self.cursor[1] >= self.size[1] {
+			self.buffer.push(vec![ECELL; self.size[0] as usize]);
+			self.buffer.remove(0);
+			self.refresh().unwrap();
+			self.cursor[1] = self.size[1] - 1;
 		}
 	}
 
@@ -107,17 +130,17 @@ impl WriteHalf {
 		}
 	}
 
-	pub fn shift_by_width(&mut self, ch: char) {
-		if wide_test(ch) {
-			self.loc(2, 2);
-		} else {
-			self.loc(2, 1);
-		}
-	}
-
 	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
+		// std::thread::sleep(std::time::Duration::from_millis(5));
+		let wide = wide_test(ch);
 		if self.eol {
-			self.loc(2, 1);
+			self.loc(2, 1, true);
+		} else if wide && self.cursor[0] == self.size[0] - 1 { // wide char skip last
+			if shift {
+				self.newline()
+			} else {
+				return Ok(()) // don't print in non shift mode
+			}
 		}
 		self.print(ch);
 		self.writer.write(&[1])?;
@@ -125,14 +148,19 @@ impl WriteHalf {
 		self.writer.write(&self.cursor[1].to_le_bytes())?;
 		self.writer.write(&(ch as u32).to_le_bytes())?;
 		self.writer.write(&self.current_color.to_le_bytes())?;
-		if shift { self.shift_by_width(ch); }
+		if shift {
+			if wide {
+				self.loc(2, 2, true);
+			} else {
+				self.loc(2, 1, true);
+			}
+		}
 		self.send_cursor()?;
 		self.writer.flush()?;
 		Ok(())
 	}
 
 	pub fn erase_display(&mut self, code: u16) {
-		eprintln!("edisp");
 		let [begin, end] =match code {
 			0 => {
 				self.erase_line(0);
@@ -150,7 +178,6 @@ impl WriteHalf {
 	}
 
 	pub fn erase_line(&mut self, code: u16) {
-		eprintln!("eline");
 		let [begin, end] =match code {
 			0 => [self.cursor[0], self.size[0]],
 			1 => [0, self.cursor[0] + 1],
@@ -166,8 +193,17 @@ impl WriteHalf {
 		self.current_color = color;
 	}
 
-	pub fn loc(&mut self, ty: u8, pos: i16) {
-		self.eol = false;
+	pub fn newline(&mut self) {
+		if self.eol {
+			self.eol = false;
+			self.loc(2, 1, true);
+			return
+		}
+		self.loc(3, 1, true);
+		self.loc(0, 0, false);
+	}
+
+	pub fn loc(&mut self, ty: u8, pos: i16, text: bool) {
 		match ty {
 			0 => self.cursor[0] = pos,
 			1 => self.cursor[1] = pos,
@@ -175,7 +211,12 @@ impl WriteHalf {
 			3 => self.cursor[1] += pos,
 			_ => panic!(),
 		}
-		self.fixcur();
+		if text {
+			self.fixcur();
+		} else {
+			self.limit_cursor();
+		}
+		self.eol = false;
 		self.send_cursor().unwrap();
 		self.writer.flush().unwrap();
 	}
