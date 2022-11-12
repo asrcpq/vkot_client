@@ -83,12 +83,12 @@ impl VteActor {
 				self.wh.loc(2, -(simple[0] as i16), false);
 			}
 			'K' => {
-				self.wh.erase_display(simple.get(0).cloned().unwrap_or(0));
-				self.wh.send_damage().unwrap();
+				let ty = simple.get(0).cloned().unwrap_or(0);
+				self.wh.erase_display(ty, true).unwrap();
 			}
 			'J' => {
-				self.wh.erase_line(simple.get(0).cloned().unwrap_or(0));
-				self.wh.send_damage().unwrap();
+				let ty = simple.get(0).cloned().unwrap_or(0);
+				self.wh.erase_line(ty, true).unwrap();
 			}
 			'H' | 'f' => {
 				// coord start from 1

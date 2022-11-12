@@ -16,6 +16,7 @@ const ECELL: (u32, u32) = (b' ' as u32, u32::MAX);
 pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
 	buffer: Vec<Vec<(u32, u32)>>,
+	// all in x, y(or col, row) order
 	size: [i16; 2],
 	_damage: [i16; 4],
 	cursor: [i16; 2],
@@ -140,7 +141,7 @@ impl WriteHalf {
 	}
 
 	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
-		// std::thread::sleep(std::time::Duration::from_millis(20));
+		// std::thread::sleep(std::time::Duration::from_millis(10));
 		let wide = wide_test(ch);
 		if self.eol {
 			self.loc(2, 1, true);
@@ -169,14 +170,14 @@ impl WriteHalf {
 		Ok(())
 	}
 
-	pub fn erase_display(&mut self, code: u16) {
+	pub fn erase_display(&mut self, code: u16, send: bool) -> Result<()> {
 		let [begin, end] =match code {
 			0 => {
-				self.erase_line(0);
+				self.erase_line(0, true)?;
 				[self.cursor[1] + 1, self.size[1]]
 			}
 			1 => {
-				self.erase_line(1);
+				self.erase_line(1, true)?;
 				[0, self.cursor[1]]
 			}
 			_ => [0, self.size[1]],
@@ -184,9 +185,20 @@ impl WriteHalf {
 		for row in begin..end {
 			self.buffer[row as usize] = vec![ECELL; self.size[0] as usize];
 		}
+		if send {
+			self.writer.write(&[3])?;
+			self.writer.write(&0i16.to_le_bytes())?;
+			self.writer.write(&begin.to_le_bytes())?;
+			self.writer.write(&self.size[1].to_le_bytes())?;
+			self.writer.write(&end.to_le_bytes())?;
+			self.writer.write(&(b' ' as u32).to_le_bytes())?;
+			self.writer.write(&u32::MAX.to_le_bytes())?;
+			self.writer.flush()?;
+		}
+		Ok(())
 	}
 
-	pub fn erase_line(&mut self, code: u16) {
+	pub fn erase_line(&mut self, code: u16, send: bool) -> Result<()> {
 		let [begin, end] =match code {
 			0 => [self.cursor[0], self.size[0]],
 			1 => [0, self.cursor[0] + 1],
@@ -196,6 +208,17 @@ impl WriteHalf {
 		for col in begin..end {
 			row[col as usize] = ECELL;
 		}
+		if send {
+			self.writer.write(&[3])?;
+			self.writer.write(&begin.to_le_bytes())?;
+			self.writer.write(&self.cursor[1].to_le_bytes())?;
+			self.writer.write(&end.to_le_bytes())?;
+			self.writer.write(&(self.cursor[1] + 1).to_le_bytes())?;
+			self.writer.write(&(b' ' as u32).to_le_bytes())?;
+			self.writer.write(&u32::MAX.to_le_bytes())?;
+			self.writer.flush()?;
+		}
+		Ok(())
 	}
 
 	pub fn set_color(&mut self, color: u32) {

@@ -1,4 +1,4 @@
-fix scroll up
+send erase with blit
 
 todo:
 split server msg
