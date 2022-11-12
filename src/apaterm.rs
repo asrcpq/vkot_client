@@ -2,12 +2,14 @@ use nix::fcntl::{open, OFlag};
 use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt};
 use nix::sys::stat::Mode;
 use nix::unistd;
-use vkot_client::ansiwrap::VteMaster;
-
+use std::ffi::CString;
 use std::os::unix::io::IntoRawFd;
 use std::path::Path;
+use std::sync::mpsc::Sender;
 
-fn start() {
+use crate::ansiwrap::VteMaster;
+
+pub fn start(tx: Sender<()>, cmd: Vec<CString>) {
 	let master_fd = posix_openpt(OFlag::O_RDWR).unwrap();
 	grantpt(&master_fd).unwrap();
 	unlockpt(&master_fd).unwrap();
@@ -19,7 +21,8 @@ fn start() {
 	match unsafe {unistd::fork()} {
 		Ok(unistd::ForkResult::Parent { child: _, .. }) => {
 			unistd::close(slave_fd).unwrap();
-			console.run(master_fd)
+			console.run(master_fd);
+			tx.send(()).unwrap();
 		}
 		Ok(unistd::ForkResult::Child) => {
 			unistd::close(master_fd).unwrap();
@@ -35,21 +38,9 @@ fn start() {
 			unistd::dup2(slave_fd, 2).unwrap(); // stderr
 			unistd::close(slave_fd).unwrap();
 
-			use std::ffi::CString;
-			let args = std::env::args().collect::<Vec<_>>();
 			std::env::set_var("TERM", "xterm-256color");
-
-			let path = CString::new(args[1].clone()).unwrap();
-			let args = args[1..].iter()
-				.cloned()
-				.map(|x| CString::new(x).unwrap())
-				.collect::<Vec<_>>();
-			unistd::execvp(&path, &args).unwrap();
+			unistd::execvp(&cmd[0], &cmd).unwrap();
 		}
 		Err(_) => panic!(),
 	}
-}
-
-fn main() {
-	start();
 }

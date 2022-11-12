@@ -1,4 +1,4 @@
-alt = escape
+split apaterm as a module
 
 todo:
 split server msg
