@@ -294,8 +294,7 @@ impl WriteHalf {
 	}
 
 	pub fn send_damage(&mut self) -> Result<()> {
-		eprintln!("send dmg {:?}", self.damage);
-		// self.send_area([0, 0, self.size[0], self.size[1]])?;
+		// eprintln!("send dmg {:?}", self.damage);
 		self.send_area(self.damage)?;
 		self.send_cursor()?;
 		self.writer.flush()?;

@@ -1,4 +1,4 @@
-split apaterm as a module
+add debug sync
 
 todo:
 split server msg

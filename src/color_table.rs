@@ -34,6 +34,11 @@ impl Default for ColorTable {
 			let c = (r << 24) + (g << 16) + (b << 8) + 255;
 			data.push(c);
 		}
+		data[0] = 0x303030FF;
+		data[4] = 0x3030C0FF;
+		data[7] = 0xA0A0A0FF;
+		data[8] = 0x707070FF;
+		data[15] = 0xE0E0E0FF;
 		Self {data}
 	}
 }

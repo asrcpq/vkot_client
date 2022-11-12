@@ -2,7 +2,7 @@ use nix::pty::Winsize;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::os::unix::io::{RawFd, FromRawFd};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, Sender, Receiver};
 use vte::Parser;
 
 use crate::client::{Client, ReadHalf};
@@ -63,6 +63,7 @@ pub struct VteMaster {
 	rh: Option<ReadHalf>,
 	master: RawFd,
 	parser: Parser,
+	sync_debug: Option<u64>,
 }
 
 impl VteMaster {
@@ -85,12 +86,18 @@ impl VteMaster {
 		wh.reset();
 		let va = VteActor::new(wh);
 
+		let sync_debug = match std::env::var("VKOT_SYNC_DEBUG") {
+			Ok(x) => x.parse::<u64>().ok(),
+			_ => None,
+		};
+
 		let mut result = Self {
 			ws: size_conv([0, 0]), // useless
 			va,
 			rh: Some(rh),
 			master,
 			parser,
+			sync_debug,
 		};
 		result.resize(tsize);
 		result
@@ -103,6 +110,11 @@ impl VteMaster {
 				for byte in bytes.into_iter() {
 					// if byte > 0 {eprint!("{:?}", byte as char);}
 					self.parser.advance(&mut self.va, byte);
+					if let Some(t) = self.sync_debug {
+						eprint!("{:?}", byte as char);
+						std::thread::sleep(std::time::Duration::from_millis(t));
+						self.va.wh.send_damage().unwrap();
+					}
 				}
 			}
 			Msg::Vtc(vtc) => {
@@ -157,23 +169,27 @@ impl VteMaster {
 		false
 	}
 
-	pub fn run(&mut self, master: RawFd) {
+	#[allow(dead_code)]
+	fn run_nolockframe(&mut self, mut file: File, rx: Receiver<Msg>) {
+		loop {
+			let msg = rx.recv().unwrap();
+			if self.proc_msg(&mut file, msg) {
+				return
+			}
+			self.va.wh.send_damage().unwrap();
+		}
+	}
+
+	fn run_lockframe(&mut self, mut file: File, rx: Receiver<Msg>) {
 		enum RecvType {
 			Block,
 			Nonblock,
 			Timeout(u64),
 		}
-
 		const FTIME: u64 = 10;
-		let (tx, rx) = channel();
-		let tx2 = tx.clone();
-		let rh = self.rh.take().unwrap();
-		std::thread::spawn(move || vtc_thread(rh, tx));
-		std::thread::spawn(move || cmd_thread(master, tx2));
-		let mut file = unsafe {File::from_raw_fd(master)};
+
 		let mut tryr = RecvType::Nonblock;
 		let mut prev_send = std::time::SystemTime::now();
-
 		// the send counter is designed to force refresh for like every 10ms
 		let mut send_counter = 0;
 		loop {
@@ -220,5 +236,17 @@ impl VteMaster {
 				}
 			}
 		}
+	}
+
+	pub fn run(&mut self, master: RawFd) {
+		let (tx, rx) = channel();
+		let tx2 = tx.clone();
+		let rh = self.rh.take().unwrap();
+		std::thread::spawn(move || vtc_thread(rh, tx));
+		std::thread::spawn(move || cmd_thread(master, tx2));
+		let file = unsafe {File::from_raw_fd(master)};
+
+		// self.run_nolockframe(file, rx);
+		self.run_lockframe(file, rx);
 	}
 }
