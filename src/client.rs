@@ -131,7 +131,7 @@ impl WriteHalf {
 	}
 
 	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
-		// std::thread::sleep(std::time::Duration::from_millis(5));
+		// std::thread::sleep(std::time::Duration::from_millis(20));
 		let wide = wide_test(ch);
 		if self.eol {
 			self.loc(2, 1, true);

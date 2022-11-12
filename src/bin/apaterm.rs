@@ -37,7 +37,7 @@ fn start() {
 
 			use std::ffi::CString;
 			let args = std::env::args().collect::<Vec<_>>();
-			std::env::set_var("TERM", "vt100");
+			std::env::set_var("TERM", "xterm-256color");
 
 			let path = CString::new(args[1].clone()).unwrap();
 			let args = args[1..].iter()

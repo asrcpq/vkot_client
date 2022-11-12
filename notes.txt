@@ -1,4 +1,4 @@
-support arrow key
+fix cursor
 
 todo:
 split server msg

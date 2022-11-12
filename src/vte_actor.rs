@@ -39,6 +39,20 @@ impl VteActor {
 							.color_table
 							.rgb_from_256color(arg as u8 - 30 + boffset)
 						);
+					} else if (90..=97).contains(&arg) {
+						self.wh.set_color(self
+							.color_table
+							.rgb_from_256color(arg as u8 - 82)
+						);
+					} else if (40..=47).contains(&arg) {
+					} else if arg == 48 {
+						let nx = iter.next().unwrap();
+						if nx == 5 {
+							iter.next();
+						} else {
+							eprintln!("uh color");
+						}
+						// skip bg
 					} else if arg == 38 {
 						let nx = iter.next().unwrap();
 						if nx == 5 {
@@ -48,9 +62,10 @@ impl VteActor {
 								.rgb_from_256color(nx as u8)
 							);
 						} else {
-							unimplemented!();
+							eprintln!("uh color");
 						}
 					} else {
+						eprintln!("uh color");
 						self.wh.set_color(u32::MAX);
 					}
 				}
@@ -76,10 +91,11 @@ impl VteActor {
 				self.wh.send_damage().unwrap();
 			}
 			'H' | 'f' => {
-				let px = simple.get(0).cloned().unwrap_or(0) as i16;
-				let py = simple.get(1).cloned().unwrap_or(0) as i16;
-				self.wh.loc(0, py, false);
-				self.wh.loc(1, px, false);
+				// coord start from 1
+				let px = simple.get(0).cloned().unwrap_or(1) as i16;
+				let py = simple.get(1).cloned().unwrap_or(1) as i16;
+				self.wh.loc(0, py - 1, false);
+				self.wh.loc(1, px - 1, false);
 			}
 			'h' | 'l' => {
 				if simple.is_empty() {
@@ -96,7 +112,7 @@ impl VteActor {
 			}
 			_ => {
 				eprintln!(
-					"unknown csi {}: {:?} {}",
+					"uh csi {}: {:?} {}",
 					action,
 					simple,
 					String::from_utf8_lossy(interm),
@@ -132,7 +148,7 @@ impl vte::Perform for VteActor {
 				eprintln!("beep!")
 			}
 			0 => {}, // ignore
-			b => eprintln!("control char received: {}", b),
+			b => eprintln!("uh ctrl: {}", b),
 		}
 	}
 
