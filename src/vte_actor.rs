@@ -165,7 +165,7 @@ impl vte::Perform for VteActor {
 	fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
 		match byte {
 			b'M' => self.wh.scroll(false),
-			_ => eprintln!("uh {:?}", byte as char),
+			_ => eprintln!("uh esc {:?}", byte as char),
 		}
 	}
 }
