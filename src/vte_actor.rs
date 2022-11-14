@@ -14,6 +14,61 @@ impl VteActor {
 		}
 	}
 
+	pub fn set_sgr(
+		&mut self,
+		simple: Vec<u16>,
+	) -> std::io::Result<()> {
+		let mut boffset = 0;
+		let mut iter = simple.into_iter();
+		loop {
+			let arg = match iter.next() {
+				Some(x) => x,
+				None => return Ok(()),
+			};
+			if arg == 1 {
+				boffset = 8;
+			} else if arg == 0 {
+				boffset = 0;
+				self.wh.set_color(u32::MAX);
+			} else if (30..=37).contains(&arg) {
+				self.wh.set_color(self
+					.color_table
+					.rgb_from_256color(arg as u8 - 30 + boffset)
+				);
+			} else if (90..=97).contains(&arg) {
+				self.wh.set_color(self
+					.color_table
+					.rgb_from_256color(arg as u8 - 82)
+				);
+			} else if (40..=47).contains(&arg) {
+			} else if arg == 48 {
+				let nx = iter.next().unwrap();
+				if nx == 5 {
+					iter.next();
+				} else {
+					eprintln!("uh color");
+				}
+				// skip bg
+			} else if arg == 38 {
+				let nx = iter.next().unwrap();
+				if nx == 5 {
+					let nx = iter.next().unwrap();
+					self.wh.set_color(self
+						.color_table
+						.rgb_from_256color(nx as u8)
+					);
+				} else {
+					eprintln!("uh color");
+				}
+			} else if arg == 39 {
+				self.wh.set_color(u32::MAX);
+			} else {
+				eprintln!("uh color {:?}", arg);
+				return Ok(())
+			}
+		}
+	}
+
 	pub fn csi_easy(
 		&mut self,
 		simple: Vec<u16>,
@@ -22,53 +77,7 @@ impl VteActor {
 	) -> std::io::Result<()> {
 		match action {
 			'm' => {
-				let mut boffset = 0;
-				let mut iter = simple.into_iter();
-				loop {
-					let arg = match iter.next() {
-						Some(x) => x,
-						None => break,
-					};
-					if arg == 1 {
-						boffset = 8;
-					} else if arg == 0 {
-						boffset = 0;
-						self.wh.set_color(u32::MAX);
-					} else if (30..=37).contains(&arg) {
-						self.wh.set_color(self
-							.color_table
-							.rgb_from_256color(arg as u8 - 30 + boffset)
-						);
-					} else if (90..=97).contains(&arg) {
-						self.wh.set_color(self
-							.color_table
-							.rgb_from_256color(arg as u8 - 82)
-						);
-					} else if (40..=47).contains(&arg) {
-					} else if arg == 48 {
-						let nx = iter.next().unwrap();
-						if nx == 5 {
-							iter.next();
-						} else {
-							eprintln!("uh color");
-						}
-						// skip bg
-					} else if arg == 38 {
-						let nx = iter.next().unwrap();
-						if nx == 5 {
-							let nx = iter.next().unwrap();
-							self.wh.set_color(self
-								.color_table
-								.rgb_from_256color(nx as u8)
-							);
-						} else {
-							eprintln!("uh color");
-						}
-					} else {
-						eprintln!("uh color");
-						self.wh.set_color(u32::MAX);
-					}
-				}
+				self.set_sgr(simple)?;
 			}
 			'A' => {
 				self.wh.loc(3, -(simple[0].max(1) as i16), false);

@@ -1,4 +1,4 @@
-impl scrollback
+split sgr parsing
 
 todo:
 split server msg
