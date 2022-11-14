@@ -1,4 +1,4 @@
-add byte debug print
+clean rewrite of put and loc(2 major underlying cursor ops)
 
 todo:
 split server msg

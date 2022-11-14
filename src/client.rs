@@ -4,10 +4,15 @@ use std::os::unix::net::UnixStream;
 
 use crate::msg::ServerMsg;
 
-pub fn wide_test(ch: char) -> bool {
-	match unicode_width::UnicodeWidthChar::width(ch) {
+pub fn wide_test(ch: char) -> (bool, i16) {
+	let wide = match unicode_width::UnicodeWidthChar::width(ch) {
 		Some(x) => x >= 2,
 		None => true,
+	};
+	if wide {
+		(true, 2)
+	} else {
+		(false, 1)
 	}
 }
 
@@ -58,7 +63,8 @@ impl WriteHalf {
 
 	pub fn reset(&mut self) {
 		self.clear();
-		self.cursor = [0; 2];
+		self.loc(0, 0);
+		self.loc(1, 0);
 		self.refresh().unwrap();
 	}
 
@@ -71,49 +77,29 @@ impl WriteHalf {
 		for i in cx..target {
 			self.buffer[self.cursor[1] as usize][i] = ECELL;
 		}
-		self.cursor[0] = target as i16;
+		let target = target as i16;
+		self.loc(0, target);
 	}
 
-	pub fn limit_cursor(&mut self) {
+	fn limit_cursor(&mut self) -> bool {
+		let mut result = false;
 		if self.cursor[0] < 0{
 			self.cursor[0] = 0;
+			result = true;
 		}
 		if self.cursor[1] < 0{
 			self.cursor[1] = 0;
+			result = true;
 		}
 		if self.cursor[0] >= self.size[0] {
 			self.cursor[0] = self.size[0] - 1;
+			result = true;
 		}
 		if self.cursor[1] >= self.size[1] {
 			self.cursor[1] = self.size[1] - 1;
+			result = true;
 		}
-	}
-
-	// TODO: prevent crash/loop for 1/0(because of pending eol) size
-	pub fn fixcur(&mut self) {
-		if self.cursor[0] < 0{
-			self.cursor[0] = 0;
-		}
-		if self.cursor[1] < 0{
-			self.cursor[1] = 0;
-		}
-		while self.cursor[0] > self.size[0] {
-			self.cursor[1] += 1;
-			self.cursor[0] -= self.size[0]
-		}
-		if self.cursor[0] == self.size[0] {
-			if self.eol {
-				self.cursor[0] = 0;
-				self.cursor[1] += 1;
-			} else {
-				self.eol = true;
-				self.cursor[0] -= 1;
-			}
-		}
-		if self.cursor[1] >= self.size[1] {
-			self.scroll(true);
-			self.cursor[1] = self.size[1] - 1;
-		}
+		result
 	}
 
 	pub fn scroll(&mut self, down: bool) {
@@ -144,47 +130,34 @@ impl WriteHalf {
 		self.send_damage().unwrap();
 	}
 
-	fn print(&mut self, ch: char) {
-		match ch {
-			'\n' => {
-				self.cursor[0] = 0;
-				self.cursor[1] += 1;
-				self.fixcur();
-				return
-			}
-			_ => {
-				let cx = self.cursor[0] as usize;
-				let cy = self.cursor[1] as usize;
-				let chu = ch as u32;
-				self.buffer[cy][cx] = (chu, self.current_color);
-			}
-		}
-	}
-
-	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
-		// TODO: for wide char, overwrite another cell with space
-		// TODO: check write is same and do not introduce damage
-		let wide = wide_test(ch);
+	pub fn put(&mut self, ch: char) {
+		debug_assert!(!ch.is_ascii_control());
+		let (wide, width) = wide_test(ch);
 		if self.eol {
-			self.loc(2, 1, true);
-		} else if wide && self.cursor[0] == self.size[0] - 1 { // wide char skip last
-			if shift {
-				self.newline()
-			} else {
-				return Ok(()) // don't print in non shift mode
-			}
+			self.eol = false;
+			self.newline();
 		}
-		self.print(ch);
 
-		self.include_damage([self.cursor[0], self.cursor[1], self.cursor[0] + 1, self.cursor[1] + 1]);
-		if shift {
-			if wide {
-				self.loc(2, 2, true);
-			} else {
-				self.loc(2, 1, true);
-			}
+		if self.cursor[0] == self.size[0] - 1 && wide {
+			self.newline();
 		}
-		Ok(())
+
+		let new_eol = self.cursor[0] == self.size[0] - width;
+		let cx = self.cursor[0] as usize;
+		let cy = self.cursor[1] as usize;
+		let chu = ch as u32;
+		self.buffer[cy][cx] = (chu, self.current_color);
+		self.include_damage([
+			self.cursor[0],
+			self.cursor[1],
+			self.cursor[0] + 1,
+			self.cursor[1] + 1,
+		]);
+		if !new_eol {
+			self.loc(2, width);
+		} else {
+			self.eol = true;
+		}
 	}
 
 	pub fn erase_display(&mut self, code: u16, send: bool) -> Result<()> {
@@ -229,16 +202,16 @@ impl WriteHalf {
 	}
 
 	pub fn newline(&mut self) {
-		if self.eol {
-			self.eol = false;
-			self.loc(2, 1, true);
-			return
+		if self.cursor[1] == self.size[1] - 1 {
+			self.scroll(true);
+		} else {
+			self.loc(3, 1);
 		}
-		self.loc(3, 1, true);
-		self.loc(0, 0, false);
+		self.loc(0, 0);
 	}
 
-	pub fn loc(&mut self, ty: u8, pos: i16, text: bool) {
+	pub fn loc(&mut self, ty: u8, pos: i16) {
+		self.eol = false;
 		match ty {
 			0 => self.cursor[0] = pos,
 			1 => self.cursor[1] = pos,
@@ -246,12 +219,7 @@ impl WriteHalf {
 			3 => self.cursor[1] += pos,
 			_ => panic!(),
 		}
-		if text {
-			self.fixcur();
-		} else {
-			self.limit_cursor();
-		}
-		self.eol = false;
+		self.limit_cursor();
 	}
 
 	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
