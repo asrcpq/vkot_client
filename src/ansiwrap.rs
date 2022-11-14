@@ -26,6 +26,29 @@ fn vtc_thread(mut rh: ReadHalf, tx: Sender<Msg>) {
 	}
 }
 
+#[derive(Default)]
+pub struct Pbyte{
+	state: u8,
+}
+
+impl Pbyte {
+	pub fn p(&mut self, byte: u8) {
+		let ch = byte as char;
+		if self.state == 1 {
+			eprint!("[48;5;22m");
+		} else {
+			eprint!("[48;5;18m");
+		}
+		if ch.is_ascii_control() {
+			eprint!("\\{}", byte);
+		} else {
+			eprint!("{}", ch);
+		}
+		eprint!("[0m");
+		self.state = 1 - self.state;
+	}
+}
+
 #[allow(unused_imports)]
 fn cmd_thread(fd: RawFd, tx: Sender<Msg>) {
 	let mut file = unsafe {std::fs::File::from_raw_fd(fd)};
@@ -66,6 +89,8 @@ pub struct VteMaster {
 	parser: Parser,
 	sync_debug: Option<u64>,
 	modtrack: ModifierTracker,
+
+	pbyte: Pbyte,
 }
 
 impl VteMaster {
@@ -101,6 +126,7 @@ impl VteMaster {
 			parser,
 			sync_debug,
 			modtrack: Default::default(),
+			pbyte: Default::default(),
 		};
 		result.resize(tsize);
 		result
@@ -114,7 +140,7 @@ impl VteMaster {
 					// if byte > 0 {eprint!("{:?}", byte as char);}
 					self.parser.advance(&mut self.va, byte);
 					if let Some(t) = self.sync_debug {
-						eprint!("{:?}", byte as char);
+						self.pbyte.p(byte);
 						std::thread::sleep(std::time::Duration::from_millis(t));
 						self.va.wh.send_damage().unwrap();
 					}

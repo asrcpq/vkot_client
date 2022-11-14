@@ -164,7 +164,6 @@ impl WriteHalf {
 	pub fn put(&mut self, ch: char, shift: bool) -> Result<()> {
 		// TODO: for wide char, overwrite another cell with space
 		// TODO: check write is same and do not introduce damage
-		// instd::thread::sleep(std::time::Duration::from_millis(10));
 		let wide = wide_test(ch);
 		if self.eol {
 			self.loc(2, 1, true);
