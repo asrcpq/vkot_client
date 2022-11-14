@@ -1,4 +1,4 @@
-clean rewrite of put and loc(2 major underlying cursor ops)
+introducing interface for bg color
 
 todo:
 split server msg

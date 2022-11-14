@@ -27,7 +27,7 @@ pub struct WriteHalf {
 	size: [i16; 2],
 	damage: [i16; 4],
 	cursor: [i16; 2],
-	current_color: u32,
+	current_color: [u32; 2],
 	eol: bool,
 }
 
@@ -41,7 +41,7 @@ impl WriteHalf {
 			size: [80, 24],
 			damage: [0; 4],
 			cursor: [0; 2],
-			current_color: u32::MAX,
+			current_color: [u32::MAX; 2],
 			eol: false,
 		}
 	}
@@ -146,7 +146,7 @@ impl WriteHalf {
 		let cx = self.cursor[0] as usize;
 		let cy = self.cursor[1] as usize;
 		let chu = ch as u32;
-		self.buffer[cy][cx] = (chu, self.current_color);
+		self.buffer[cy][cx] = (chu, self.current_color[0]);
 		self.include_damage([
 			self.cursor[0],
 			self.cursor[1],
@@ -197,8 +197,12 @@ impl WriteHalf {
 		Ok(())
 	}
 
-	pub fn set_color(&mut self, color: u32) {
-		self.current_color = color;
+	pub fn fg_color(&mut self, color: u32) {
+		self.current_color[0] = color;
+	}
+
+	pub fn bg_color(&mut self, color: u32) {
+		self.current_color[1] = color;
 	}
 
 	pub fn newline(&mut self) {
