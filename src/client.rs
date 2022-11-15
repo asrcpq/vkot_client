@@ -30,6 +30,7 @@ pub struct WriteHalf {
 	size: [i16; 2],
 	damage: Region,
 	cursor: [i16; 2],
+	scroll_region: [usize; 2],
 	eol: bool,
 }
 
@@ -43,6 +44,7 @@ impl WriteHalf {
 			ecell: Cell::default(),
 			reversed: false,
 			size: [80, 24],
+			scroll_region: [0, 24],
 			damage: Region::default(),
 			cursor: [0; 2],
 			eol: false,
@@ -56,6 +58,11 @@ impl WriteHalf {
 			line.resize(new_size[0] as usize, self.ecell);
 		}
 		self.size = new_size;
+		self.scroll_region = [0, new_size[1] as usize];
+	}
+
+	pub fn set_scroll_region(&mut self, top: u16, bot: u16) {
+		self.scroll_region = [top as usize, bot as usize];
 	}
 
 	pub fn clear(&mut self) {
@@ -113,14 +120,20 @@ impl WriteHalf {
 	pub fn scroll(&mut self, down: bool) {
 		self.damage_all();
 		if down {
-			self.buffer.push(vec![self.ecell; self.size[0] as usize]);
-			self.history.push_front(self.buffer.remove(0));
+			self.buffer.insert(
+				self.scroll_region[1],
+				vec![self.ecell; self.size[0] as usize],
+			);
+			self.history.push_front(self.buffer.remove(self.scroll_region[0]));
 			let hlen = self.history.len();
 			if hlen > 10000 {
 				self.history.drain(10001..);
 			}
 		} else {
-			self.buffer.insert(0, vec![self.ecell; self.size[0] as usize]);
+			self.buffer.insert(
+				self.scroll_region[0] as usize,
+				vec![self.ecell; self.size[0] as usize],
+			);
 			self.buffer.pop();
 		}
 	}

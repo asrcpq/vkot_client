@@ -157,24 +157,36 @@ impl VteActor {
 				self.wh.loc(0, py as i16 - 1);
 				self.wh.loc(1, px as i16 - 1);
 			}
+			'd' => {
+				let px = simple.gv(0);
+				self.wh.loc(0, 0);
+				self.wh.loc(1, px as i16 - 1);
+			}
 			'h' | 'l' => {
 				if simple.is_empty() {
 					return Ok(())
 				}
-				if simple[0] == 2004 {
-					// backet copy/paste
-					return Ok(())
+				match simple[0] {
+					2004 => {}, // backet copy/paste
+					1000 | 1002 | 1003 | 1006 => {}, // mouse related
+					1 => {}, // application mode
+					_ => eprintln!(
+						"uh csi {}: {:?} {}",
+						action,
+						simple,
+						String::from_utf8_lossy(interm),
+					)
 				}
-				if simple[0] == 1 {
-					// application mode
-					return Ok(())
+			}
+			'r' => {
+				if simple.len() == 2 {
+					self.wh.set_scroll_region(
+						simple.gv(0),
+						simple.gv(1),
+					);
+				} else {
+					eprintln!("uh csi r");
 				}
-				eprintln!(
-					"uh csi {}: {:?} {}",
-					action,
-					simple,
-					String::from_utf8_lossy(interm),
-				)
 			}
 			'X' => {
 				let count = simple.gv(0);
@@ -234,10 +246,11 @@ impl vte::Perform for VteActor {
 
 	fn esc_dispatch(&mut self, interm: &[u8], _ignore: bool, byte: u8) {
 		match byte {
+			b'B' => {} // BPH
 			b'M' => self.wh.scroll(false),
 			b'=' => {} // ignore keypad
 			b'>' => {} // ignore keypad
-			_ => eprintln!("uh esc {:?} {:?}", byte as char, interm),
+			_ => eprintln!("uh esc {:?} {:?}", byte as char, String::from_utf8_lossy(interm)),
 		}
 	}
 }

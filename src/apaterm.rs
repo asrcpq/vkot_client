@@ -38,7 +38,7 @@ pub fn start(tx: Sender<()>, cmd: Vec<CString>) {
 			unistd::dup2(slave_fd, 2).unwrap(); // stderr
 			unistd::close(slave_fd).unwrap();
 
-			std::env::set_var("TERM", "st-256color");
+			std::env::set_var("TERM", "xterm-256color");
 			unistd::execvp(&cmd[0], &cmd).unwrap();
 		}
 		Err(_) => panic!(),
