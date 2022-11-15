@@ -26,6 +26,7 @@ pub struct WriteHalf {
 	// current empty cell
 	ecell: Cell,
 	reversed: bool,
+	underline: bool,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
 	damage: Region,
@@ -42,6 +43,7 @@ impl WriteHalf {
 			buffer: vec![vec![Cell::default(); 80]; 24],
 			ecell: Cell::default(),
 			reversed: false,
+			underline: false,
 			size: [80, 24],
 			damage: Region::default(),
 			cursor: [0; 2],
@@ -139,13 +141,17 @@ impl WriteHalf {
 	pub fn char_cell(&self, ch: u32) -> Cell {
 		let mut cell = self.ecell.with_unic(ch);
 		if self.reversed {
-			[cell.fg, cell.bg] = [cell.bg, cell.fg];
+			let mut fg2 = cell.fg & 0xFF;
+			fg2 |= cell.bg & 0xFFFFFF00;
+			[cell.fg, cell.bg] = [fg2, cell.fg];
+		}
+		if self.underline {
+			cell.de |= 1 << 2;
 		}
 		cell
 	}
 
 	pub fn put(&mut self, ch: char) {
-		debug_assert!(!ch.is_ascii_control());
 		let (wide, width) = wide_test(ch);
 		if self.eol {
 			self.eol = false;
@@ -159,8 +165,8 @@ impl WriteHalf {
 		let new_eol = self.cursor[0] == self.size[0] - width;
 		let cx = self.cursor[0] as usize;
 		let cy = self.cursor[1] as usize;
-		let unic = ch as u32;
-		self.buffer[cy][cx] = self.char_cell(unic);
+		let ch = ch as u32;
+		self.buffer[cy][cx] = self.char_cell(ch);
 		self.include_damage(Region::new([
 			self.cursor[0],
 			self.cursor[1],
@@ -178,14 +184,14 @@ impl WriteHalf {
 		}
 	}
 
-	pub fn erase_display(&mut self, code: u16, send: bool) -> Result<()> {
+	pub fn erase_display(&mut self, code: u16) {
 		let [begin, end] =match code {
 			0 => {
-				self.erase_line(0, true)?;
+				self.erase_line(0);
 				[self.cursor[1] + 1, self.size[1]]
 			}
 			1 => {
-				self.erase_line(1, true)?;
+				self.erase_line(1);
 				[0, self.cursor[1]]
 			}
 			_ => [0, self.size[1]],
@@ -193,15 +199,12 @@ impl WriteHalf {
 		for row in begin..end {
 			self.buffer[row as usize] = vec![self.ecell; self.size[0] as usize];
 		}
-		if send {
-			self.include_damage(Region::new(
-				[0, begin, self.size[1], end]
-			));
-		}
-		Ok(())
+		self.include_damage(Region::new(
+			[0, begin, self.size[0], end]
+		));
 	}
 
-	pub fn erase_line(&mut self, code: u16, send: bool) -> Result<()> {
+	pub fn erase_line(&mut self, code: u16) {
 		let [begin, end] =match code {
 			0 => [self.cursor[0], self.size[0]],
 			1 => [0, self.cursor[0] + 1],
@@ -211,12 +214,9 @@ impl WriteHalf {
 		for col in begin..end {
 			row[col as usize] = self.ecell;
 		}
-		if send {
-			self.include_damage(Region::new(
-				[begin, self.cursor[1], end, self.cursor[1] + 1]
-			));
-		}
-		Ok(())
+		self.include_damage(Region::new(
+			[begin, self.cursor[1], end, self.cursor[1] + 1]
+		));
 	}
 
 	pub fn fg_color(&mut self, color: u32) {
@@ -229,6 +229,10 @@ impl WriteHalf {
 
 	pub fn reverse_color(&mut self, reversed: bool) {
 		self.reversed = reversed;
+	}
+
+	pub fn underline(&mut self, underline: bool) {
+		self.underline = underline;
 	}
 
 	pub fn newline(&mut self) {

@@ -32,8 +32,14 @@ impl VteActor {
 				1 => {
 					// bold
 				}
+				4 => {
+					self.wh.underline(true);
+				}
 				7 => {
 					self.wh.reverse_color(true);
+				}
+				24 => {
+					self.wh.underline(false);
 				}
 				27 => {
 					self.wh.reverse_color(false);
@@ -89,7 +95,7 @@ impl VteActor {
 				100..=107 => {
 					self.wh.bg_color(self
 						.color_table
-						.rgb_from_256color(arg as u8 - 82)
+						.rgb_from_256color(arg as u8 - 92)
 					);
 				}
 				_ => {
@@ -122,13 +128,13 @@ impl VteActor {
 			'D' => {
 				self.wh.loc(2, -(simple[0].max(1) as i16));
 			}
-			'K' => {
-				let ty = simple.get(0).cloned().unwrap_or(0);
-				self.wh.erase_display(ty, true).unwrap();
-			}
 			'J' => {
 				let ty = simple.get(0).cloned().unwrap_or(0);
-				self.wh.erase_line(ty, true).unwrap();
+				self.wh.erase_display(ty);
+			}
+			'K' => {
+				let ty = simple.get(0).cloned().unwrap_or(0);
+				self.wh.erase_line(ty);
 			}
 			'H' | 'f' => {
 				// coord start from 1

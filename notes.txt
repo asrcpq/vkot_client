@@ -1,4 +1,4 @@
-implement reverse video
+fix some color problem
 
 todo:
 split server msg
