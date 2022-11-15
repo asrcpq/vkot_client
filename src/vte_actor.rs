@@ -32,6 +32,12 @@ impl VteActor {
 				1 => {
 					// bold
 				}
+				7 => {
+					self.wh.reverse_color(true);
+				}
+				27 => {
+					self.wh.reverse_color(false);
+				}
 				30..=37 => {
 					self.wh.fg_color(self
 						.color_table

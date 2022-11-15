@@ -1,4 +1,4 @@
-simplify sgr
+implement reverse video
 
 todo:
 split server msg

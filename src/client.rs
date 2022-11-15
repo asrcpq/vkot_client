@@ -136,6 +136,14 @@ impl WriteHalf {
 		self.damage_all();
 	}
 
+	pub fn char_cell(&self, ch: u32) -> Cell {
+		let mut cell = self.ecell.with_unic(ch);
+		if self.reversed {
+			[cell.fg, cell.bg] = [cell.bg, cell.fg];
+		}
+		cell
+	}
+
 	pub fn put(&mut self, ch: char) {
 		debug_assert!(!ch.is_ascii_control());
 		let (wide, width) = wide_test(ch);
@@ -152,7 +160,7 @@ impl WriteHalf {
 		let cx = self.cursor[0] as usize;
 		let cy = self.cursor[1] as usize;
 		let unic = ch as u32;
-		self.buffer[cy][cx] = self.ecell.with_unic(unic);
+		self.buffer[cy][cx] = self.char_cell(unic);
 		self.include_damage(Region::new([
 			self.cursor[0],
 			self.cursor[1],
