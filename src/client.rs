@@ -4,6 +4,7 @@ use std::os::unix::net::UnixStream;
 
 use crate::msg::ServerMsg;
 use vkot_common::cell::Cell;
+use vkot_common::region::Region;
 
 pub fn wide_test(ch: char) -> (bool, i16) {
 	let wide = match unicode_width::UnicodeWidthChar::width(ch) {
@@ -26,7 +27,7 @@ pub struct WriteHalf {
 	ecell: Cell,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
-	damage: [i16; 4],
+	damage: Region,
 	cursor: [i16; 2],
 	eol: bool,
 }
@@ -40,7 +41,7 @@ impl WriteHalf {
 			buffer: vec![vec![Cell::default(); 80]; 24],
 			ecell: Cell::default(),
 			size: [80, 24],
-			damage: [0; 4],
+			damage: Region::default(),
 			cursor: [0; 2],
 			eol: false,
 		}
@@ -66,6 +67,11 @@ impl WriteHalf {
 		self.loc(0, 0);
 		self.loc(1, 0);
 		self.refresh().unwrap();
+	}
+
+	pub fn refresh(&mut self) -> Result<()> {
+		self.damage_all();
+		self.send_damage()
 	}
 
 	pub fn tab(&mut self) {
@@ -145,12 +151,12 @@ impl WriteHalf {
 		let cy = self.cursor[1] as usize;
 		let unic = ch as u32;
 		self.buffer[cy][cx] = self.ecell.with_unic(unic);
-		self.include_damage([
+		self.include_damage(Region::new([
 			self.cursor[0],
 			self.cursor[1],
 			self.cursor[0] + 1,
 			self.cursor[1] + 1,
-		]);
+		]));
 		if !new_eol {
 			// if wide {
 			// 	self.put(' '); // overwrite another space
@@ -178,7 +184,9 @@ impl WriteHalf {
 			self.buffer[row as usize] = vec![self.ecell; self.size[0] as usize];
 		}
 		if send {
-			self.include_damage([0, begin, self.size[1], end]);
+			self.include_damage(Region::new(
+				[0, begin, self.size[1], end]
+			));
 		}
 		Ok(())
 	}
@@ -194,7 +202,9 @@ impl WriteHalf {
 			row[col as usize] = self.ecell;
 		}
 		if send {
-			self.include_damage([begin, self.cursor[1], end, self.cursor[1] + 1]);
+			self.include_damage(Region::new(
+				[begin, self.cursor[1], end, self.cursor[1] + 1]
+			));
 		}
 		Ok(())
 	}
@@ -228,13 +238,11 @@ impl WriteHalf {
 		self.limit_cursor();
 	}
 
-	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
-		if area[2] <= area[0] || area[3] <= area[1] { return Ok(()) }
+	pub fn send_area(&mut self, area: Region) -> Result<()> {
+		if area.is_empty() { return Ok(()) }
 		self.writer.write(&[2])?;
-		self.writer.write(&area[0].to_le_bytes())?;
-		self.writer.write(&area[1].to_le_bytes())?;
-		self.writer.write(&area[2].to_le_bytes())?;
-		self.writer.write(&area[3].to_le_bytes())?;
+		area.write_le_bytes(&mut self.writer)?;
+		let area = area.data();
 
 		// respect to hist
 		for y in area[1] as usize..area[3] as usize {
@@ -264,39 +272,14 @@ impl WriteHalf {
 		Ok(())
 	}
 
-	pub fn refresh(&mut self) -> Result<()> {
-		self.send_area([0, 0, self.size[0], self.size[1]])?;
-		self.send_cursor()?;
-		self.writer.flush()?;
-		Ok(())
-	}
-
 	pub fn damage_all(&mut self) {
-		self.damage = [0, 0, self.size[0], self.size[1]];
+		self.damage = Region::sizebox(self.size);
 	}
 
-	pub fn include_damage(&mut self, mut damage: [i16; 4]) {
-		if damage[2] <= damage[0] || damage[3] <= damage[1] { return }
-		if damage[0] < 0 {
-			damage[0] = 0;
-		}
-		if damage[1] < 0 {
-			damage[1] = 0;
-		}
-		if damage[2] > self.size[0] {
-			damage[2] = self.size[0];
-		}
-		if damage[3] > self.size[1] {
-			damage[3] = self.size[1];
-		}
-		if self.damage[2] == 0 {
-			self.damage = damage;
-		}
-
-		self.damage[0] = self.damage[0].min(damage[0]);
-		self.damage[1] = self.damage[1].min(damage[1]);
-		self.damage[2] = self.damage[2].max(damage[2]);
-		self.damage[3] = self.damage[3].max(damage[3]);
+	pub fn include_damage(&mut self, mut damage: Region) {
+		if damage.is_empty() { return }
+		damage = damage.intersect(&Region::sizebox(self.size));
+		self.damage = self.damage.union(&damage);
 	}
 
 	pub fn send_damage(&mut self) -> Result<()> {
@@ -304,7 +287,7 @@ impl WriteHalf {
 		self.send_area(self.damage)?;
 		self.send_cursor()?;
 		self.writer.flush()?;
-		self.damage = [0; 4];
+		self.damage = Region::default();
 		Ok(())
 	}
 }
