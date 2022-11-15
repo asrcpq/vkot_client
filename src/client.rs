@@ -25,6 +25,7 @@ pub struct WriteHalf {
 	buffer: Vec<Vec<Cell>>,
 	// current empty cell
 	ecell: Cell,
+	reversed: bool,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
 	damage: Region,
@@ -40,6 +41,7 @@ impl WriteHalf {
 			histcur: 0,
 			buffer: vec![vec![Cell::default(); 80]; 24],
 			ecell: Cell::default(),
+			reversed: false,
 			size: [80, 24],
 			damage: Region::default(),
 			cursor: [0; 2],
@@ -217,6 +219,10 @@ impl WriteHalf {
 		self.ecell.bg = color;
 	}
 
+	pub fn reverse_color(&mut self, reversed: bool) {
+		self.reversed = reversed;
+	}
+
 	pub fn newline(&mut self) {
 		if self.cursor[1] == self.size[1] - 1 {
 			self.scroll(true);
@@ -239,6 +245,7 @@ impl WriteHalf {
 	}
 
 	pub fn send_area(&mut self, area: Region) -> Result<()> {
+		let area = area.intersect(&Region::sizebox(self.size));
 		if area.is_empty() { return Ok(()) }
 		self.writer.write(&[2])?;
 		area.write_le_bytes(&mut self.writer)?;
@@ -253,10 +260,10 @@ impl WriteHalf {
 				//        ^ y = 2, out
 				let cell = if y < self.histcur {
 					let yy = self.histcur - y - 1;
-					&self.history[yy][x]
+					self.history[yy].get(x).cloned().unwrap_or(Cell::default())
 				} else {
 					let yy = y - self.histcur;
-					&self.buffer[yy][x]
+					self.buffer[yy][x]
 				};
 
 				cell.write_le_bytes(&mut self.writer)?;

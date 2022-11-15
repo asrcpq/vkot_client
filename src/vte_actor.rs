@@ -18,68 +18,78 @@ impl VteActor {
 		&mut self,
 		simple: Vec<u16>,
 	) -> std::io::Result<()> {
-		let mut boffset = 0;
 		let mut iter = simple.into_iter();
 		loop {
 			let arg = match iter.next() {
 				Some(x) => x,
 				None => return Ok(()),
 			};
-			if arg == 1 {
-				boffset = 8;
-			} else if arg == 0 {
-				boffset = 0;
-				self.wh.fg_color(u32::MAX);
-				self.wh.bg_color(0);
-			} else if (30..=37).contains(&arg) {
-				self.wh.fg_color(self
-					.color_table
-					.rgb_from_256color(arg as u8 - 30 + boffset)
-				);
-			} else if arg == 39 {
-				self.wh.fg_color(u32::MAX);
-			} else if (90..=97).contains(&arg) {
-				self.wh.fg_color(self
-					.color_table
-					.rgb_from_256color(arg as u8 - 82)
-				);
-			} else if (100..=107).contains(&arg) {
-				self.wh.bg_color(self
-					.color_table
-					.rgb_from_256color(arg as u8 - 82)
-				);
-			} else if (40..=47).contains(&arg) {
-				self.wh.bg_color(self
-					.color_table
-					.rgb_from_256color(arg as u8 - 40 + boffset)
-				);
-			} else if arg == 49 {
-				self.wh.fg_color(0);
-			} else if arg == 48 {
-				let nx = iter.next().unwrap();
-				if nx == 5 {
-					let nx = iter.next().unwrap();
-					self.wh.bg_color(self
-						.color_table
-						.rgb_from_256color(nx as u8)
-					);
-				} else {
-					eprintln!("uh color");
+			match arg {
+				0 => {
+					self.wh.fg_color(u32::MAX);
+					self.wh.bg_color(0);
 				}
-			} else if arg == 38 {
-				let nx = iter.next().unwrap();
-				if nx == 5 {
-					let nx = iter.next().unwrap();
+				1 => {
+					// bold
+				}
+				30..=37 => {
 					self.wh.fg_color(self
 						.color_table
-						.rgb_from_256color(nx as u8)
+						.rgb_from_256color(arg as u8 - 30)
 					);
-				} else {
-					eprintln!("uh color");
 				}
-			} else {
-				eprintln!("uh color {:?}", arg);
-				return Ok(())
+				38 => {
+					let nx = iter.next().unwrap();
+					if nx == 5 {
+						let nx = iter.next().unwrap();
+						self.wh.fg_color(self
+							.color_table
+							.rgb_from_256color(nx as u8)
+						);
+					} else {
+						eprintln!("uh color");
+					}
+				}
+				39 => {
+					self.wh.fg_color(u32::MAX)
+				}
+				40..=47 => {
+					self.wh.bg_color(self
+						.color_table
+						.rgb_from_256color(arg as u8 - 40)
+					);
+				}
+				48 => {
+					let nx = iter.next().unwrap();
+					if nx == 5 {
+						let nx = iter.next().unwrap();
+						self.wh.bg_color(self
+							.color_table
+							.rgb_from_256color(nx as u8)
+						);
+					} else {
+						eprintln!("uh color");
+					}
+				}
+				49 => {
+					self.wh.fg_color(0);
+				}
+				90..=97 => {
+					self.wh.fg_color(self
+						.color_table
+						.rgb_from_256color(arg as u8 - 82)
+					);
+				}
+				100..=107 => {
+					self.wh.bg_color(self
+						.color_table
+						.rgb_from_256color(arg as u8 - 82)
+					);
+				}
+				_ => {
+					eprintln!("uh color {:?}", arg);
+					return Ok(())
+				}
 			}
 		}
 	}

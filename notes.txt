@@ -1,4 +1,4 @@
-use region module
+simplify sgr
 
 todo:
 split server msg
