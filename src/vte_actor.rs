@@ -28,18 +28,20 @@ impl VteActor {
 				0 => {
 					self.wh.fg_color(u32::MAX);
 					self.wh.bg_color(0);
+					self.wh.reverse_color(false);
+					self.wh.set_decoration(u32::MAX, 0);
 				}
 				1 => {
 					// bold
 				}
 				4 => {
-					self.wh.underline(true);
+					self.wh.set_decoration(1 << 2, 1);
 				}
 				7 => {
 					self.wh.reverse_color(true);
 				}
 				24 => {
-					self.wh.underline(false);
+					self.wh.set_decoration(1 << 2, 0);
 				}
 				27 => {
 					self.wh.reverse_color(false);

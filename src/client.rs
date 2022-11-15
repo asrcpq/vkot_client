@@ -26,7 +26,6 @@ pub struct WriteHalf {
 	// current empty cell
 	ecell: Cell,
 	reversed: bool,
-	underline: bool,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
 	damage: Region,
@@ -43,7 +42,6 @@ impl WriteHalf {
 			buffer: vec![vec![Cell::default(); 80]; 24],
 			ecell: Cell::default(),
 			reversed: false,
-			underline: false,
 			size: [80, 24],
 			damage: Region::default(),
 			cursor: [0; 2],
@@ -145,9 +143,6 @@ impl WriteHalf {
 			fg2 |= cell.bg & 0xFFFFFF00;
 			[cell.fg, cell.bg] = [fg2, cell.fg];
 		}
-		if self.underline {
-			cell.de |= 1 << 2;
-		}
 		cell
 	}
 
@@ -231,8 +226,17 @@ impl WriteHalf {
 		self.reversed = reversed;
 	}
 
-	pub fn underline(&mut self, underline: bool) {
-		self.underline = underline;
+	// ty: 0, 1 = set, 2 = flip
+	pub fn set_decoration(&mut self, mask: u32, ty: u8) {
+		let changed = match ty {
+			0 => 0,
+			1 => mask,
+			2 => {
+				(self.ecell.de & mask) ^ mask
+			}
+			_ => unreachable!()
+		};
+		self.ecell.de = self.ecell.de & !mask + changed;
 	}
 
 	pub fn newline(&mut self) {
