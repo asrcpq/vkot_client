@@ -100,6 +100,7 @@ pub struct VteMaster {
 	parser: Parser,
 	modtrack: ModifierTracker,
 	debugger: Option<Debugger>,
+	alt_on: bool,
 }
 
 impl VteMaster {
@@ -135,6 +136,7 @@ impl VteMaster {
 			parser,
 			debugger,
 			modtrack: Default::default(),
+			alt_on: false,
 		};
 		result.resize(tsize);
 		result
@@ -158,6 +160,10 @@ impl VteMaster {
 				match vtc {
 					ServerMsg::Getch(ch) => {
 						if ch < 127 {
+							if self.alt_on {
+								file.write(b"\x1b").unwrap();
+								self.alt_on = false;
+							}
 							file.write(&[ch as u8]).unwrap();
 						}
 					}
@@ -171,6 +177,10 @@ impl VteMaster {
 							return false
 						};
 						if !skey.down {
+							match skey.ty {
+								SkType::Modifier(3) => self.alt_on = false,
+								_ => {},
+							}
 							return false
 						}
 						match skey.ty {
@@ -199,7 +209,7 @@ impl VteMaster {
 							}
 							SkType::Modifier(x) => {
 								if x == 3 {
-									file.write(b"\x1b").unwrap();
+									self.alt_on = true;
 								} else {
 									self.modtrack.update_skey(skey);
 								}
