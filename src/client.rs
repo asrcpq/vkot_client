@@ -146,15 +146,31 @@ impl WriteHalf {
 		cell
 	}
 
+	pub fn ech(&mut self, count: i16) {
+		let xmax = (self.cursor[0] + count).min(self.size[0]);
+		for x in self.cursor[0]..xmax {
+			self.buffer[self.cursor[1] as usize][x as usize] = self.ecell;
+		}
+		self.damage_all();
+		self.include_damage(Region::new([
+			self.cursor[0],
+			self.cursor[1],
+			xmax,
+			self.cursor[1] + 1,
+		]));
+	}
+
 	pub fn put(&mut self, ch: char) {
 		let (wide, width) = wide_test(ch);
 		if self.eol {
 			self.eol = false;
 			self.newline();
+			self.loc(0, 0);
 		}
 
 		if self.cursor[0] == self.size[0] - 1 && wide {
 			self.newline();
+			self.loc(0, 0);
 		}
 
 		let new_eol = self.cursor[0] == self.size[0] - width;
@@ -245,7 +261,6 @@ impl WriteHalf {
 		} else {
 			self.loc(3, 1);
 		}
-		self.loc(0, 0);
 	}
 
 	pub fn loc(&mut self, ty: u8, pos: i16) {

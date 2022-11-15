@@ -114,36 +114,48 @@ impl VteActor {
 		interm: &[u8],
 		action: char,
 	) -> std::io::Result<()> {
+		trait CsiVec {
+			fn gv(&self, idx: usize) -> u16;
+			fn gv0(&self, idx: usize) -> u16;
+		}
+		impl CsiVec for Vec<u16> {
+			fn gv(&self, idx: usize) -> u16 {
+				self.get(idx).cloned().unwrap_or(0).max(1)
+			}
+			fn gv0(&self, idx: usize) -> u16 {
+				self.get(idx).cloned().unwrap_or(0)
+			}
+		}
 		match action {
 			'm' => {
 				self.set_sgr(simple)?;
 			}
 			'A' => {
-				self.wh.loc(3, -(simple[0].max(1) as i16));
+				self.wh.loc(3, -(simple.gv(0) as i16));
 			}
 			'B' => {
-				self.wh.loc(3, simple[0].max(1) as i16);
+				self.wh.loc(3, simple.gv(0) as i16);
 			}
 			'C' => {
-				self.wh.loc(2, simple[0].max(1) as i16);
+				self.wh.loc(2, simple.gv(0) as i16);
 			}
 			'D' => {
-				self.wh.loc(2, -(simple[0].max(1) as i16));
+				self.wh.loc(2, -(simple.gv(0) as i16));
 			}
 			'J' => {
-				let ty = simple.get(0).cloned().unwrap_or(0);
+				let ty = simple.gv0(0);
 				self.wh.erase_display(ty);
 			}
 			'K' => {
-				let ty = simple.get(0).cloned().unwrap_or(0);
+				let ty = simple.gv0(0);
 				self.wh.erase_line(ty);
 			}
 			'H' | 'f' => {
 				// coord start from 1
-				let px = simple.get(0).cloned().unwrap_or(1) as i16;
-				let py = simple.get(1).cloned().unwrap_or(1) as i16;
-				self.wh.loc(0, py - 1);
-				self.wh.loc(1, px - 1);
+				let px = simple.gv(0);
+				let py = simple.gv(1);
+				self.wh.loc(0, py as i16 - 1);
+				self.wh.loc(1, px as i16 - 1);
 			}
 			'h' | 'l' => {
 				if simple.is_empty() {
@@ -157,6 +169,16 @@ impl VteActor {
 					// application mode
 					return Ok(())
 				}
+				eprintln!(
+					"uh csi {}: {:?} {}",
+					action,
+					simple,
+					String::from_utf8_lossy(interm),
+				)
+			}
+			'X' => {
+				let count = simple.gv(0);
+				self.wh.ech(count as i16);
 			}
 			_ => {
 				eprintln!(
@@ -210,10 +232,12 @@ impl vte::Perform for VteActor {
 		self.csi_easy(simple, interm, action).unwrap();
 	}
 
-	fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+	fn esc_dispatch(&mut self, interm: &[u8], _ignore: bool, byte: u8) {
 		match byte {
 			b'M' => self.wh.scroll(false),
-			_ => eprintln!("uh esc {:?}", byte as char),
+			b'=' => {} // ignore keypad
+			b'>' => {} // ignore keypad
+			_ => eprintln!("uh esc {:?} {:?}", byte as char, interm),
 		}
 	}
 }
