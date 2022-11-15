@@ -11,3 +11,4 @@ nix = "0.25"
 libc = "0.2"
 
 skey = {path = "../skey"}
+vkot_common = {path = "../vkot_common"}

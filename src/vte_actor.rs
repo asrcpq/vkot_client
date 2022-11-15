@@ -30,11 +30,14 @@ impl VteActor {
 			} else if arg == 0 {
 				boffset = 0;
 				self.wh.fg_color(u32::MAX);
+				self.wh.bg_color(0);
 			} else if (30..=37).contains(&arg) {
 				self.wh.fg_color(self
 					.color_table
 					.rgb_from_256color(arg as u8 - 30 + boffset)
 				);
+			} else if arg == 39 {
+				self.wh.fg_color(u32::MAX);
 			} else if (90..=97).contains(&arg) {
 				self.wh.fg_color(self
 					.color_table
@@ -50,16 +53,18 @@ impl VteActor {
 					.color_table
 					.rgb_from_256color(arg as u8 - 40 + boffset)
 				);
+			} else if arg == 49 {
+				self.wh.fg_color(0);
 			} else if arg == 48 {
 				let nx = iter.next().unwrap();
 				if nx == 5 {
-					iter.next();
-				} else {
-					eprintln!("uh color");
+					let nx = iter.next().unwrap();
 					self.wh.bg_color(self
 						.color_table
 						.rgb_from_256color(nx as u8)
 					);
+				} else {
+					eprintln!("uh color");
 				}
 			} else if arg == 38 {
 				let nx = iter.next().unwrap();
@@ -72,8 +77,6 @@ impl VteActor {
 				} else {
 					eprintln!("uh color");
 				}
-			} else if arg == 39 {
-				self.wh.fg_color(u32::MAX);
 			} else {
 				eprintln!("uh color {:?}", arg);
 				return Ok(())

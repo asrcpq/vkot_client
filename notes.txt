@@ -1,4 +1,4 @@
-introducing interface for bg color
+bg color
 
 todo:
 split server msg

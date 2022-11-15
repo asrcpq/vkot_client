@@ -3,6 +3,7 @@ use std::io::{BufWriter, Read, Write, Result};
 use std::os::unix::net::UnixStream;
 
 use crate::msg::ServerMsg;
+use vkot_common::cell::Cell;
 
 pub fn wide_test(ch: char) -> (bool, i16) {
 	let wide = match unicode_width::UnicodeWidthChar::width(ch) {
@@ -16,18 +17,17 @@ pub fn wide_test(ch: char) -> (bool, i16) {
 	}
 }
 
-const ECELL: (u32, u32) = (b' ' as u32, u32::MAX);
-
 pub struct WriteHalf {
 	writer: BufWriter<UnixStream>,
-	history: VecDeque<Vec<(u32, u32)>>,
+	history: VecDeque<Vec<Cell>>,
 	histcur: usize,
-	buffer: Vec<Vec<(u32, u32)>>,
+	buffer: Vec<Vec<Cell>>,
+	// current empty cell
+	ecell: Cell,
 	// all in x, y(or col, row) order
 	size: [i16; 2],
 	damage: [i16; 4],
 	cursor: [i16; 2],
-	current_color: [u32; 2],
 	eol: bool,
 }
 
@@ -37,20 +37,20 @@ impl WriteHalf {
 			writer: BufWriter::new(stream),
 			history: VecDeque::new(),
 			histcur: 0,
-			buffer: vec![vec![ECELL; 80]; 24],
+			buffer: vec![vec![Cell::default(); 80]; 24],
+			ecell: Cell::default(),
 			size: [80, 24],
 			damage: [0; 4],
 			cursor: [0; 2],
-			current_color: [u32::MAX; 2],
 			eol: false,
 		}
 	}
 
 	pub fn resize(&mut self, new_size: [i16; 2]) {
 		eprintln!("resizing to {:?}", new_size);
-		self.buffer.resize(new_size[1] as usize, vec![ECELL; new_size[0] as usize]);
+		self.buffer.resize(new_size[1] as usize, vec![self.ecell; new_size[0] as usize]);
 		for line in self.buffer.iter_mut() {
-			line.resize(new_size[0] as usize, ECELL);
+			line.resize(new_size[0] as usize, self.ecell);
 		}
 		self.size = new_size;
 	}
@@ -58,7 +58,7 @@ impl WriteHalf {
 	pub fn clear(&mut self) {
 		let sx = self.size[0] as usize;
 		let sy = self.size[1] as usize;
-		self.buffer = vec![vec![ECELL; sx]; sy];
+		self.buffer = vec![vec![self.ecell; sx]; sy];
 	}
 
 	pub fn reset(&mut self) {
@@ -75,7 +75,7 @@ impl WriteHalf {
 			return
 		}
 		for i in cx..target {
-			self.buffer[self.cursor[1] as usize][i] = ECELL;
+			self.buffer[self.cursor[1] as usize][i] = self.ecell;
 		}
 		let target = target as i16;
 		self.loc(0, target);
@@ -105,14 +105,14 @@ impl WriteHalf {
 	pub fn scroll(&mut self, down: bool) {
 		self.damage_all();
 		if down {
-			self.buffer.push(vec![ECELL; self.size[0] as usize]);
+			self.buffer.push(vec![self.ecell; self.size[0] as usize]);
 			self.history.push_front(self.buffer.remove(0));
 			let hlen = self.history.len();
 			if hlen > 10000 {
 				self.history.drain(10001..);
 			}
 		} else {
-			self.buffer.insert(0, vec![ECELL; self.size[0] as usize]);
+			self.buffer.insert(0, vec![self.ecell; self.size[0] as usize]);
 			self.buffer.pop();
 		}
 	}
@@ -126,8 +126,6 @@ impl WriteHalf {
 			self.histcur = self.histcur.min(self.history.len());
 		}
 		self.damage_all();
-		// TODO: investigate into when and where to make render sending call
-		self.send_damage().unwrap();
 	}
 
 	pub fn put(&mut self, ch: char) {
@@ -145,8 +143,8 @@ impl WriteHalf {
 		let new_eol = self.cursor[0] == self.size[0] - width;
 		let cx = self.cursor[0] as usize;
 		let cy = self.cursor[1] as usize;
-		let chu = ch as u32;
-		self.buffer[cy][cx] = (chu, self.current_color[0]);
+		let unic = ch as u32;
+		self.buffer[cy][cx] = self.ecell.with_unic(unic);
 		self.include_damage([
 			self.cursor[0],
 			self.cursor[1],
@@ -154,7 +152,11 @@ impl WriteHalf {
 			self.cursor[1] + 1,
 		]);
 		if !new_eol {
-			self.loc(2, width);
+			// if wide {
+			// 	self.put(' '); // overwrite another space
+			// }
+			// self.loc(2, 1);
+			self.loc(2, width); // FIXME
 		} else {
 			self.eol = true;
 		}
@@ -173,7 +175,7 @@ impl WriteHalf {
 			_ => [0, self.size[1]],
 		};
 		for row in begin..end {
-			self.buffer[row as usize] = vec![ECELL; self.size[0] as usize];
+			self.buffer[row as usize] = vec![self.ecell; self.size[0] as usize];
 		}
 		if send {
 			self.include_damage([0, begin, self.size[1], end]);
@@ -189,7 +191,7 @@ impl WriteHalf {
 		};
 		let row = &mut self.buffer[self.cursor[1] as usize];
 		for col in begin..end {
-			row[col as usize] = ECELL;
+			row[col as usize] = self.ecell;
 		}
 		if send {
 			self.include_damage([begin, self.cursor[1], end, self.cursor[1] + 1]);
@@ -198,11 +200,11 @@ impl WriteHalf {
 	}
 
 	pub fn fg_color(&mut self, color: u32) {
-		self.current_color[0] = color;
+		self.ecell.fg = color;
 	}
 
 	pub fn bg_color(&mut self, color: u32) {
-		self.current_color[1] = color;
+		self.ecell.bg = color;
 	}
 
 	pub fn newline(&mut self) {
@@ -228,7 +230,7 @@ impl WriteHalf {
 
 	pub fn send_area(&mut self, area: [i16; 4]) -> Result<()> {
 		if area[2] <= area[0] || area[3] <= area[1] { return Ok(()) }
-		self.writer.write(&[0])?;
+		self.writer.write(&[2])?;
 		self.writer.write(&area[0].to_le_bytes())?;
 		self.writer.write(&area[1].to_le_bytes())?;
 		self.writer.write(&area[2].to_le_bytes())?;
@@ -243,24 +245,20 @@ impl WriteHalf {
 				//        ^ y = 2, out
 				let cell = if y < self.histcur {
 					let yy = self.histcur - y - 1;
-					self.history[yy][x]
+					&self.history[yy][x]
 				} else {
 					let yy = y - self.histcur;
-					self.buffer[yy][x]
+					&self.buffer[yy][x]
 				};
 
-				// old simple get
-				// let cell = self.buffer[y][x];
-
-				self.writer.write(&cell.0.to_le_bytes())?;
-				self.writer.write(&cell.1.to_le_bytes())?;
+				self.writer.write(&cell.to_le_bytes())?;
 			}
 		}
 		Ok(())
 	}
 
 	pub fn send_cursor(&mut self) -> Result<()> {
-		self.writer.write(&[2])?;
+		self.writer.write(&[0])?;
 		self.writer.write(&self.cursor[0].to_le_bytes())?;
 		self.writer.write(&self.cursor[1].to_le_bytes())?;
 		Ok(())
