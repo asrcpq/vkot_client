@@ -251,7 +251,7 @@ impl WriteHalf {
 					&self.buffer[yy][x]
 				};
 
-				self.writer.write(&cell.to_le_bytes())?;
+				cell.write_le_bytes(&mut self.writer)?;
 			}
 		}
 		Ok(())
