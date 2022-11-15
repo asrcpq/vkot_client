@@ -26,13 +26,24 @@ fn vtc_thread(mut rh: ReadHalf, tx: Sender<Msg>) {
 	}
 }
 
-#[derive(Default)]
-pub struct Pbyte{
-	state: u8,
+pub struct Debugger{
+	file: std::fs::File,
+	pub state: i8,
+	pub sleep: u64,
 }
 
-impl Pbyte {
+impl Debugger {
+	pub fn new(sleep: u64) -> Self {
+		let file = std::fs::File::create("/tmp/vkot_debug.txt").unwrap();
+		Self {
+			file,
+			sleep,
+			state: 0,
+		}
+	}
+
 	pub fn p(&mut self, byte: u8) {
+		self.file.write(&[byte]).unwrap();
 		let ch = byte as char;
 		if self.state == 1 {
 			eprint!("[48;5;22m");
@@ -87,10 +98,8 @@ pub struct VteMaster {
 	rh: Option<ReadHalf>,
 	master: RawFd,
 	parser: Parser,
-	sync_debug: Option<u64>,
 	modtrack: ModifierTracker,
-
-	pbyte: Pbyte,
+	debugger: Option<Debugger>,
 }
 
 impl VteMaster {
@@ -113,8 +122,8 @@ impl VteMaster {
 		wh.reset();
 		let va = VteActor::new(wh);
 
-		let sync_debug = match std::env::var("VKOT_SYNC_DEBUG") {
-			Ok(x) => x.parse::<u64>().ok(),
+		let debugger = match std::env::var("VKOT_SYNC_DEBUG") {
+			Ok(x) => Some(Debugger::new(x.parse::<u64>().unwrap())),
 			_ => None,
 		};
 
@@ -124,9 +133,8 @@ impl VteMaster {
 			rh: Some(rh),
 			master,
 			parser,
-			sync_debug,
+			debugger,
 			modtrack: Default::default(),
-			pbyte: Default::default(),
 		};
 		result.resize(tsize);
 		result
@@ -139,9 +147,9 @@ impl VteMaster {
 				for byte in bytes.into_iter() {
 					// if byte > 0 {eprint!("{:?}", byte as char);}
 					self.parser.advance(&mut self.va, byte);
-					if let Some(t) = self.sync_debug {
-						self.pbyte.p(byte);
-						std::thread::sleep(std::time::Duration::from_millis(t));
+					if let Some(debugger) = self.debugger.as_mut() {
+						debugger.p(byte);
+						std::thread::sleep(std::time::Duration::from_millis(debugger.sleep));
 						self.va.wh.send_damage().unwrap();
 					}
 				}

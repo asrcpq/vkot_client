@@ -86,7 +86,7 @@ impl VteActor {
 					}
 				}
 				49 => {
-					self.wh.fg_color(0);
+					self.wh.bg_color(0);
 				}
 				90..=97 => {
 					self.wh.fg_color(self
